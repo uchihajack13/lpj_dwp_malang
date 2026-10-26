@@ -1,13 +1,13 @@
 # ==============================================================================
-# APLIKASI SMART GENERATOR LPJ DWP KPPBC TMC MALANG (V3.0 - PRODUCTION)
-# Arsitektur: Template-Cloning Engine + Smart Financial 3-Mode + Google Sheets
+# APLIKASI ENTERPRISE GENERATOR RAB & LPJ DWP KPPBC TMC MALANG (V5.0 PRODUCTION)
+# Arsitektur: "Fily" Modern Sidebar Admin UI + Zero-Loss Template Cloning
+#             + Smart 3-Mode Financial Engine + 1-Click RAB-to-LPJ + Google Sheets
 # Aturan Koding Mutlak: 0 Backslash Character di Seluruh Baris Kode Python
 # ==============================================================================
 
 import os
 import io
 import json
-import uuid
 import base64
 import shutil
 import tempfile
@@ -19,7 +19,7 @@ import streamlit as st
 from PIL import Image
 
 import docx
-from docx.shared import Cm, Pt, Inches, RGBColor
+from docx.shared import Cm, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement, parse_xml
@@ -32,12 +32,13 @@ try:
 except Exception:
     HAS_GSPREAD = False
 
+
 # ==============================================================================
 # BAGIAN 1: KONSTANTA, ASET BAWAAN & KONFIGURASI HALAMAN
 # ==============================================================================
 
 st.set_page_config(
-    page_title="Smart LPJ DWP KPPBC TMC Malang",
+    page_title="DWP BC Malang — Enterprise RAB & LPJ Suite V5.0",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -46,13 +47,29 @@ st.set_page_config(
 NL = chr(10)
 TAB = chr(9)
 BS = chr(92)
+BULLET_CHAR = chr(8226)
 
 DEFAULT_SPREADSHEET_ID = "1_I2f5Gb_F2hMCIIpwwjLF_LpWeCSlWc_E60rYh9hTxc"
+SHEET_DB_RAB = "DATABASE_RAB"
 SHEET_DB_LPJ = "DATABASE_LPJ"
 SHEET_REKAP_DANA = "REKAP_ITEM_DANA"
 
+COLS_DB_RAB = [
+    "ID_RAB",
+    "WAKTU_SIMPAN",
+    "NAMA_KEGIATAN",
+    "LOKASI_ACARA",
+    "SUMBER_DANA",
+    "KET_TABEL_DANA",
+    "TOTAL_RAB",
+    "CATATAN_NOTE",
+    "STATUS_KONVERSI",
+    "PAYLOAD_JSON",
+]
+
 COLS_DB_LPJ = [
     "ID_LPJ",
+    "ID_RAB_REF",
     "WAKTU_SIMPAN",
     "TGL_LAPORAN",
     "NAMA_KEGIATAN",
@@ -69,7 +86,8 @@ COLS_DB_LPJ = [
 ]
 
 COLS_REKAP_DANA = [
-    "ID_LPJ",
+    "ID_DOKUMEN",
+    "JENIS_DOK",
     "TGL_ACARA",
     "NAMA_KEGIATAN",
     "NO_ITEM",
@@ -80,7 +98,8 @@ COLS_REKAP_DANA = [
     "KETERANGAN",
 ]
 
-TEMPLATE_FILENAME = "LPJ_DWP GABUNGAN DI BLITAR_2026-1.docx"
+TEMPLATE_LPJ_FILENAME = "LPJ_DWP GABUNGAN DI BLITAR_2026-1.docx"
+TEMPLATE_RAB_FILENAME = "RAB DWP GABUNGAN DI JEMBER.docx"
 
 EMBEDDED_LOGO1_B64 = "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"
 EMBEDDED_LOGO2_B64 = "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"
@@ -95,8 +114,35 @@ DEFAULT_UCAPAN_DONATUR = (
     "dengan kegiatan ini semakin memperkuat tali silaturahmi dan kekeluargaan kita."
 )
 
-PRESET_BLITAR_2026 = {
+PRESET_RAB_JEMBER = {
+    "id_rab": "RAB-2026-JEMBER",
+    "baris_1_judul": "RANCANGAN ANGGARAN BIAYA",
+    "nama_kegiatan_rab": "PELAKSANAAN PERTEMUAN RUTIN PAGUYUBAN DHARMA WANITA PERSATUAN DJBC DI LINGKUNGAN KANWIL DJBC JATIM II",
+    "lokasi_acara_rab": "(DI KPPBC TMP C JEMBER)",
+    "sumber_dana_rab": "Kas Dharma Wanita KPPBC TMC Malang",
+    "ket_tabel_rab": "",
+    "merge_ket_rab": False,
+    "catatan_note_rab": NL.join([
+        "Iuran DWP Gabungan untuk 5 orang Rp 300.000 + (2 orang x Rp 75.000)",
+        "E-Toll (PP) dari Tol Singosari – Tol Probolinggo Timur dan sebaliknya Rp 112.000 x 2",
+    ]),
+    "status_konversi": "BELUM DIKONVERSI",
+    "items_rab": [
+        {"NO": 1, "KEBUTUHAN KEGIATAN": "Iuran DWP Gabungan di Jember", "JUMLAH": 7, "HARGA SATUAN": 0, "HARGA TOTAL": 450000, "KETERANGAN": ""},
+        {"NO": 2, "KEBUTUHAN KEGIATAN": "Doorprize", "JUMLAH": 7, "HARGA SATUAN": 50000, "HARGA TOTAL": 350000, "KETERANGAN": ""},
+        {"NO": 3, "KEBUTUHAN KEGIATAN": "Mobil (Bensin)", "JUMLAH": 2, "HARGA SATUAN": 0, "HARGA TOTAL": 0, "KETERANGAN": ""},
+        {"NO": 4, "KEBUTUHAN KEGIATAN": "Sopir", "JUMLAH": 2, "HARGA SATUAN": 0, "HARGA TOTAL": 0, "KETERANGAN": ""},
+        {"NO": 5, "KEBUTUHAN KEGIATAN": "Snack", "JUMLAH": 10, "HARGA SATUAN": 20000, "HARGA TOTAL": 200000, "KETERANGAN": ""},
+        {"NO": 6, "KEBUTUHAN KEGIATAN": "Air Mineral 700ml (isi 12 botol)", "JUMLAH": 2, "HARGA SATUAN": 23000, "HARGA TOTAL": 46000, "KETERANGAN": ""},
+        {"NO": 7, "KEBUTUHAN KEGIATAN": "Sarapan pagi", "JUMLAH": 10, "HARGA SATUAN": 30000, "HARGA TOTAL": 300000, "KETERANGAN": ""},
+        {"NO": 8, "KEBUTUHAN KEGIATAN": "Makan Malam", "JUMLAH": 10, "HARGA SATUAN": 30000, "HARGA TOTAL": 300000, "KETERANGAN": ""},
+        {"NO": 9, "KEBUTUHAN KEGIATAN": "E-Toll (Pulang-Pergi)", "JUMLAH": 2, "HARGA SATUAN": 224000, "HARGA TOTAL": 448000, "KETERANGAN": ""},
+    ],
+}
+
+PRESET_LPJ_BLITAR_2026 = {
     "id_lpj": "LPJ-20260813-BLITAR",
+    "id_rab_ref": "RAB-2026-JEMBER",
     "tgl_laporan": date(2026, 8, 13),
     "nama_kegiatan": "Pertemuan Rutin Paguyuban Dharma Wanita Persatuan DJBC di lingkungan Kanwil DJBC Jawa Timur II",
     "tema_kegiatan": "Kebersamaan dalam Keceriaan, Bersinergi dalam Kebahagiaan",
@@ -134,16 +180,21 @@ PRESET_BLITAR_2026 = {
     ],
 }
 
+MENU_DASHBOARD = "🏠 Dashboard Utama"
+MENU_RAB = "📋 1. Susun RAB"
+MENU_LPJ = "📝 2. Buat LPJ"
+MENU_PREVIEW = "🖨️ 3. Preview A4 & Download Center"
+MENU_CLOUD = "🗄️ 4. Database Cloud"
+ALL_MENUS = [MENU_DASHBOARD, MENU_RAB, MENU_LPJ, MENU_PREVIEW, MENU_CLOUD]
+
 
 # ==============================================================================
-# BAGIAN 2: HELPER FUNGSI BAHASA & KEUANGAN INDONESIA
+# BAGIAN 2: HELPER FUNGSI BAHASA, KEUANGAN & DETEKTOR KONSISTENSI
 # ==============================================================================
 
 def parse_num(val) -> int:
-    """Mengubah nilai string format Indonesia (Rp 250.000, 13rb, -) menjadi integer murni."""
-    if val is None:
-        return 0
-    if isinstance(val, bool):
+    """Mengubah nilai string format Indonesia (Rp 250.000, 112rb, -) menjadi integer murni."""
+    if val is None or isinstance(val, bool):
         return 0
     if isinstance(val, (int, float)):
         if pd.isna(val):
@@ -181,13 +232,11 @@ def parse_num(val) -> int:
         s = s.split(",")[0]
 
     digits = "".join(ch for ch in s if ch.isdigit())
-    if not digits:
-        return 0
-    return int(digits)
+    return int(digits) if digits else 0
 
 
 def fmt_ribuan(val) -> str:
-    """Mengubah integer menjadi string titik ribuan Indonesia (5075000 -> 5.075.000)."""
+    """Mengubah integer menjadi string titik ribuan Indonesia (2094000 -> 2.094.000)."""
     n = parse_num(val)
     if n < 0:
         return "-" + f"{abs(n):,}".replace(",", ".")
@@ -195,7 +244,7 @@ def fmt_ribuan(val) -> str:
 
 
 def fmt_rp_cell(val, is_dash_if_zero: bool = True) -> str:
-    """Format sel Rupiah tabel LPJ tanpa karakter Tab liar agar anti-potong di PDF."""
+    """Format sel Rupiah tabel RAB/LPJ tanpa karakter Tab liar agar anti-potong di PDF."""
     n = parse_num(val)
     if n <= 0:
         return "Rp -" if is_dash_if_zero else "Rp 0"
@@ -274,13 +323,11 @@ def format_hari_tanggal_indo(dt) -> str:
         "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
         "Juli", "Agustus", "September", "Oktober", "November", "Desember"
     ]
-    hari = nama_hari[dt.weekday()]
-    bulan = nama_bulan[dt.month]
-    return f"{hari}, {dt.day} {bulan} {dt.year}"
+    return f"{nama_hari[dt.weekday()]}, {dt.day} {nama_bulan[dt.month]} {dt.year}"
 
 
-def normalize_items_df(records, default_ket: str = "Kas DWP BC Malang & Donatur Anggota") -> pd.DataFrame:
-    """Menerapkan Logika 3-Mode secara konsisten pada seluruh baris rincian dana."""
+def normalize_items_df(records, default_ket: str = "") -> pd.DataFrame:
+    """Menerapkan Logika 3-Mode secara reaktif tanpa memicu cursor-jump."""
     rows = []
     if isinstance(records, pd.DataFrame):
         raw_list = records.to_dict(orient="records")
@@ -298,7 +345,8 @@ def normalize_items_df(records, default_ket: str = "Kas DWP BC Malang & Donatur 
         jml = max(0, parse_num(item.get("JUMLAH", item.get("jumlah", 1))))
         h_sat = max(0, parse_num(item.get("HARGA SATUAN", item.get("harga_satuan", 0))))
         h_tot_in = max(0, parse_num(item.get("HARGA TOTAL", item.get("harga_total", 0))))
-        ket = str(item.get("KETERANGAN", item.get("keterangan", default_ket)) or default_ket).strip()
+        ket_raw = item.get("KETERANGAN", item.get("keterangan", default_ket))
+        ket = str(ket_raw if ket_raw is not None else default_ket).strip()
 
         # Logika 3-Mode Smart Financial Engine:
         # Mode 1 (Normal): Harga Satuan > 0 -> Harga Total = Jumlah * Harga Satuan
@@ -335,7 +383,34 @@ def normalize_items_df(records, default_ket: str = "Kas DWP BC Malang & Donatur 
     return pd.DataFrame(rows)
 
 
-def smart_paste_parser(raw_text: str, default_ket: str) -> list:
+def detect_location_mismatch(lokasi_judul: str, df_items: pd.DataFrame) -> list:
+    """
+    Mendeteksi jika di Judul RAB tertulis Jember namun ada baris item yang masih tertulis Blitar
+    (seperti typo di file asli RAB DWP GABUNGAN DI JEMBER.docx baris 1: 'Iuran DWP Gabungan di Blitar').
+    """
+    kota_list = ["jember", "blitar", "malang", "surabaya", "kediri", "madiun", "probolinggo", "pasuruan", "banyuwangi", "tulungagung", "bojonegoro", "gresik", "sidoarjo"]
+    lok_lower = (lokasi_judul or "").lower()
+    kota_judul = [k for k in kota_list if k in lok_lower]
+    if not kota_judul or df_items is None or df_items.empty:
+        return []
+
+    target_kota = kota_judul[0].title()
+    warnings = []
+    for _, r in df_items.iterrows():
+        keb = str(r.get("KEBUTUHAN KEGIATAN", ""))
+        keb_low = keb.lower()
+        for k in kota_list:
+            if k in keb_low and k.title() != target_kota:
+                warnings.append({
+                    "no": int(r.get("NO", 0)),
+                    "item": keb,
+                    "wrong_city": k.title(),
+                    "target_city": target_kota,
+                })
+    return warnings
+
+
+def smart_paste_parser(raw_text: str, default_ket: str = "") -> list:
     """Mengekstrak daftar belanja dari teks WhatsApp/Catatan ke format 3-Mode secara cerdas."""
     parsed = []
     if not raw_text or not raw_text.strip():
@@ -343,14 +418,12 @@ def smart_paste_parser(raw_text: str, default_ket: str) -> list:
 
     lines = [ln.strip() for ln in raw_text.split(NL) if ln.strip()]
     for ln in lines:
-        # Buang nomor urut di depan jika ada (misal: "1. Roti | 20 | 13000")
         clean_ln = ln
         if "." in clean_ln[:4]:
             left_num, rest = clean_ln.split(".", 1)
             if left_num.strip().isdigit():
                 clean_ln = rest.strip()
 
-        # Coba format pemisah pipa (|) atau titik koma (;)
         if "|" in clean_ln or ";" in clean_ln:
             sep = "|" if "|" in clean_ln else ";"
             parts = [p.strip() for p in clean_ln.split(sep)]
@@ -377,8 +450,6 @@ def smart_paste_parser(raw_text: str, default_ket: str) -> list:
             })
             continue
 
-        # Coba deteksi pola natural WhatsApp:
-        # 1) "Roti 20 x 13.000" atau "Roti 20 @ 13000"
         lower_ln = clean_ln.lower()
         found_mult = False
         for sym in [" x ", " @ ", " * "]:
@@ -406,7 +477,6 @@ def smart_paste_parser(raw_text: str, default_ket: str) -> list:
         if found_mult:
             continue
 
-        # 2) "Iuran Blitar 10 total 675.000"
         if " total " in lower_ln:
             idx_tot = lower_ln.rfind(" total ")
             left_part = clean_ln[:idx_tot].strip()
@@ -428,7 +498,6 @@ def smart_paste_parser(raw_text: str, default_ket: str) -> list:
             })
             continue
 
-        # 3) "Mobil 2 -" atau "Doorprize 10"
         tokens = clean_ln.split()
         if len(tokens) >= 2:
             last_tok = tokens[-1]
@@ -481,7 +550,7 @@ def smart_paste_parser(raw_text: str, default_ket: str) -> list:
 
 
 def build_paragraf_pembuka(nama_kegiatan: str, tema_kegiatan: str, konteks_hut: str) -> str:
-    """Menyusun paragraf pembuka adaptif sesuai ketersediaan Tema dan Konteks HUT."""
+    """Menyusun paragraf pembuka LPJ adaptif sesuai ketersediaan Tema dan Konteks HUT."""
     nama = (nama_kegiatan or "").strip() or "Kegiatan Dharma Wanita Persatuan KPPBC TMC Malang"
     tema = (tema_kegiatan or "").strip().strip('"')
     hut = (konteks_hut or "").strip()
@@ -502,7 +571,7 @@ def build_paragraf_pembuka(nama_kegiatan: str, tema_kegiatan: str, konteks_hut: 
 
 
 # ==============================================================================
-# BAGIAN 3: KONEKSI GOOGLE SHEETS API & OFFLINE RESILIENCE
+# BAGIAN 3: KONEKSI GOOGLE SHEETS API (3 WORKSHEETS) & OFFLINE RESILIENCE
 # ==============================================================================
 
 @st.cache_resource(show_spinner=False)
@@ -530,50 +599,61 @@ def get_gspread_client(creds_json_str: str = ""):
             creds_dict = None
 
     if not creds_dict:
-        return None, "Mode Lokal Aktif (Kredensial Google Sheets belum dihubungkan)."
+        return None, "Mode Lokal Aktif (Kredensial Cloud belum dihubungkan)"
 
     try:
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         client = gspread.authorize(creds)
-        return client, "Terhubung ke Google Sheets API"
+        return client, "Terhubung ke Google Sheets Cloud"
     except Exception as e:
         return None, f"Gagal otentikasi Google Sheets: {e}"
 
 
 def ensure_worksheets_ready(sh):
-    """Memastikan worksheet DATABASE_LPJ dan REKAP_ITEM_DANA tersedia beserta header-nya."""
+    """Memastikan 3 worksheet (DATABASE_RAB, DATABASE_LPJ, REKAP_ITEM_DANA) siap digunakan."""
     existing_titles = [ws.title for ws in sh.worksheets()]
 
-    if SHEET_DB_LPJ not in existing_titles:
-        ws_db = sh.add_worksheet(title=SHEET_DB_LPJ, rows=500, cols=len(COLS_DB_LPJ))
-        ws_db.batch_update([{"range": "A1:N1", "values": [COLS_DB_LPJ]}], value_input_option="USER_ENTERED")
+    if SHEET_DB_RAB not in existing_titles:
+        ws_rab = sh.add_worksheet(title=SHEET_DB_RAB, rows=500, cols=len(COLS_DB_RAB))
+        ws_rab.batch_update([{"range": "A1:J1", "values": [COLS_DB_RAB]}], value_input_option="USER_ENTERED")
     else:
-        ws_db = sh.worksheet(SHEET_DB_LPJ)
+        ws_rab = sh.worksheet(SHEET_DB_RAB)
+
+    if SHEET_DB_LPJ not in existing_titles:
+        ws_lpj = sh.add_worksheet(title=SHEET_DB_LPJ, rows=500, cols=len(COLS_DB_LPJ))
+        ws_lpj.batch_update([{"range": "A1:O1", "values": [COLS_DB_LPJ]}], value_input_option="USER_ENTERED")
+    else:
+        ws_lpj = sh.worksheet(SHEET_DB_LPJ)
 
     if SHEET_REKAP_DANA not in existing_titles:
-        ws_rk = sh.add_worksheet(title=SHEET_REKAP_DANA, rows=2000, cols=len(COLS_REKAP_DANA))
-        ws_rk.batch_update([{"range": "A1:I1", "values": [COLS_REKAP_DANA]}], value_input_option="USER_ENTERED")
+        ws_rk = sh.add_worksheet(title=SHEET_REKAP_DANA, rows=2500, cols=len(COLS_REKAP_DANA))
+        ws_rk.batch_update([{"range": "A1:J1", "values": [COLS_REKAP_DANA]}], value_input_option="USER_ENTERED")
     else:
         ws_rk = sh.worksheet(SHEET_REKAP_DANA)
 
-    return ws_db, ws_rk
+    return ws_rab, ws_lpj, ws_rk
 
 
 @st.cache_data(ttl=180, show_spinner=False)
 def fetch_sheet_bundle_cached(spreadsheet_id: str, creds_json_str: str = "") -> dict:
-    """Membaca DATABASE_LPJ dan REKAP_ITEM_DANA sekaligus dengan values_batch_get hemat kuota."""
+    """Membaca DATABASE_RAB, DATABASE_LPJ, dan REKAP_ITEM_DANA sekaligus dengan 1 panggilan API."""
     client, status_msg = get_gspread_client(creds_json_str)
     if client is None:
-        return {"ok": False, "msg": status_msg, "db_rows": [], "rekap_rows": []}
+        return {"ok": False, "msg": status_msg, "rab_rows": [], "lpj_rows": [], "rekap_rows": []}
 
     try:
         sh = client.open_by_key(spreadsheet_id)
         ensure_worksheets_ready(sh)
-        batch_res = sh.values_batch_get([f"{SHEET_DB_LPJ}!A1:N500", f"{SHEET_REKAP_DANA}!A1:I2000"])
+        batch_res = sh.values_batch_get([
+            f"{SHEET_DB_RAB}!A1:J500",
+            f"{SHEET_DB_LPJ}!A1:O500",
+            f"{SHEET_REKAP_DANA}!A1:J2500",
+        ])
         value_ranges = batch_res.get("valueRanges", [])
 
-        db_vals = value_ranges[0].get("values", []) if len(value_ranges) > 0 else []
-        rk_vals = value_ranges[1].get("values", []) if len(value_ranges) > 1 else []
+        rab_vals = value_ranges[0].get("values", []) if len(value_ranges) > 0 else []
+        lpj_vals = value_ranges[1].get("values", []) if len(value_ranges) > 1 else []
+        rk_vals = value_ranges[2].get("values", []) if len(value_ranges) > 2 else []
 
         def _to_records(vals, expected_cols):
             if not vals or len(vals) < 2:
@@ -592,12 +672,13 @@ def fetch_sheet_bundle_cached(spreadsheet_id: str, creds_json_str: str = "") -> 
 
         return {
             "ok": True,
-            "msg": "Data berhasil disinkronkan dari Google Sheets.",
-            "db_rows": _to_records(db_vals, COLS_DB_LPJ),
+            "msg": "Cloud Google Sheets Aktif",
+            "rab_rows": _to_records(rab_vals, COLS_DB_RAB),
+            "lpj_rows": _to_records(lpj_vals, COLS_DB_LPJ),
             "rekap_rows": _to_records(rk_vals, COLS_REKAP_DANA),
         }
     except Exception as e:
-        return {"ok": False, "msg": f"Gagal membaca Google Sheets: {e}", "db_rows": [], "rekap_rows": []}
+        return {"ok": False, "msg": f"Gagal membaca GSheet: {e}", "rab_rows": [], "lpj_rows": [], "rekap_rows": []}
 
 
 def get_sheet_bundle(spreadsheet_id: str, creds_json_str: str = "") -> dict:
@@ -609,59 +690,50 @@ def get_sheet_bundle(spreadsheet_id: str, creds_json_str: str = "") -> dict:
 
     if "_backup_sheet_bundle" in st.session_state:
         backup = dict(st.session_state["_backup_sheet_bundle"])
-        backup["msg"] = backup.get("msg", "") + " (Menggunakan cadangan memori lokal)"
+        backup["msg"] = backup.get("msg", "") + " (Cadangan Memori)"
         return backup
 
     return {
         "ok": False,
         "msg": res.get("msg", "Mode Offline Lokal Aktif"),
-        "db_rows": st.session_state.get("local_db_lpj", []),
+        "rab_rows": st.session_state.get("local_db_rab", []),
+        "lpj_rows": st.session_state.get("local_db_lpj", []),
         "rekap_rows": st.session_state.get("local_rekap_dana", []),
     }
 
 
-def save_lpj_to_storage(payload: dict, spreadsheet_id: str, creds_json_str: str = "") -> tuple:
-    """Menyimpan LPJ ke Session State Lokal dan Google Sheets (via batch_update di luar loop)."""
-    id_lpj = payload.get("id_lpj") or ("LPJ-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
-    payload["id_lpj"] = id_lpj
+def save_rab_to_storage(rab_payload: dict, spreadsheet_id: str, creds_json_str: str = "") -> tuple:
+    """Menyimpan dokumen RAB ke memori lokal dan Google Sheets (DATABASE_RAB & REKAP_ITEM_DANA)."""
+    id_rab = rab_payload.get("id_rab") or ("RAB-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    rab_payload["id_rab"] = id_rab
     waktu_simpan = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    tgl_lap_str = str(payload.get("tgl_laporan", date.today()))
-    tgl_acara_str = payload.get("tgl_acara_manual", "").strip() or format_hari_tanggal_indo(payload.get("tgl_acara", date.today()))
+    df_items = normalize_items_df(rab_payload.get("items_rab", []), rab_payload.get("ket_tabel_rab", ""))
+    total_rab = int(df_items["HARGA TOTAL"].sum()) if not df_items.empty else 0
 
-    df_items = normalize_items_df(payload.get("items_dana", []), payload.get("ket_tabel_dana", ""))
-    total_dana = int(df_items["HARGA TOTAL"].sum()) if not df_items.empty else 0
+    serializable = dict(rab_payload)
+    serializable["items_rab"] = df_items.to_dict(orient="records")
 
-    serializable_payload = dict(payload)
-    if isinstance(serializable_payload.get("tgl_laporan"), (date, datetime)):
-        serializable_payload["tgl_laporan"] = serializable_payload["tgl_laporan"].strftime("%Y-%m-%d")
-    if isinstance(serializable_payload.get("tgl_acara"), (date, datetime)):
-        serializable_payload["tgl_acara"] = serializable_payload["tgl_acara"].strftime("%Y-%m-%d")
-    serializable_payload["items_dana"] = df_items.to_dict(orient="records")
-
-    db_row_dict = {
-        "ID_LPJ": id_lpj,
+    rab_row_dict = {
+        "ID_RAB": id_rab,
         "WAKTU_SIMPAN": waktu_simpan,
-        "TGL_LAPORAN": tgl_lap_str,
-        "NAMA_KEGIATAN": payload.get("nama_kegiatan", ""),
-        "TEMA_KEGIATAN": payload.get("tema_kegiatan", ""),
-        "KONTEKS_HUT": payload.get("konteks_hut", ""),
-        "TGL_ACARA": tgl_acara_str,
-        "WAKTU_ACARA": payload.get("waktu_acara", ""),
-        "TEMPAT_ACARA": payload.get("tempat_acara", ""),
-        "SUMBER_DANA": payload.get("sumber_dana", ""),
-        "KET_TABEL_DANA": payload.get("ket_tabel_dana", ""),
-        "TOTAL_DANA": total_dana,
-        "PENANDATANGAN": payload.get("nama_penandatangan", ""),
-        "PAYLOAD_JSON": json.dumps(serializable_payload, ensure_ascii=False),
+        "NAMA_KEGIATAN": rab_payload.get("nama_kegiatan_rab", ""),
+        "LOKASI_ACARA": rab_payload.get("lokasi_acara_rab", ""),
+        "SUMBER_DANA": rab_payload.get("sumber_dana_rab", ""),
+        "KET_TABEL_DANA": rab_payload.get("ket_tabel_rab", ""),
+        "TOTAL_RAB": total_rab,
+        "CATATAN_NOTE": rab_payload.get("catatan_note_rab", ""),
+        "STATUS_KONVERSI": rab_payload.get("status_konversi", "BELUM DIKONVERSI"),
+        "PAYLOAD_JSON": json.dumps(serializable, ensure_ascii=False),
     }
 
     rekap_dicts = []
     for _, r in df_items.iterrows():
         rekap_dicts.append({
-            "ID_LPJ": id_lpj,
-            "TGL_ACARA": tgl_acara_str,
-            "NAMA_KEGIATAN": payload.get("nama_kegiatan", ""),
+            "ID_DOKUMEN": id_rab,
+            "JENIS_DOK": "RAB",
+            "TGL_ACARA": rab_payload.get("lokasi_acara_rab", ""),
+            "NAMA_KEGIATAN": rab_payload.get("nama_kegiatan_rab", ""),
             "NO_ITEM": int(r["NO"]),
             "KEBUTUHAN_KEGIATAN": str(r["KEBUTUHAN KEGIATAN"]),
             "JUMLAH": int(r["JUMLAH"]),
@@ -670,84 +742,191 @@ def save_lpj_to_storage(payload: dict, spreadsheet_id: str, creds_json_str: str 
             "KETERANGAN": str(r["KETERANGAN"]),
         })
 
-    # 1. Simpan ke Session State Lokal (Offline Resilience 100%)
-    local_db = [row for row in st.session_state.get("local_db_lpj", []) if row.get("ID_LPJ") != id_lpj]
-    local_db.insert(0, db_row_dict)
-    st.session_state["local_db_lpj"] = local_db
+    local_rab = [row for row in st.session_state.get("local_db_rab", []) if row.get("ID_RAB") != id_rab]
+    local_rab.insert(0, rab_row_dict)
+    st.session_state["local_db_rab"] = local_rab
 
-    local_rk = [row for row in st.session_state.get("local_rekap_dana", []) if row.get("ID_LPJ") != id_lpj]
+    local_rk = [row for row in st.session_state.get("local_rekap_dana", []) if row.get("ID_DOKUMEN") != id_rab]
     local_rk.extend(rekap_dicts)
     st.session_state["local_rekap_dana"] = local_rk
 
-    # 2. Jika Google Sheets terhubung, tulis sekaligus menggunakan batch_update di luar loop
     client, status_msg = get_gspread_client(creds_json_str)
     if client is None:
-        return True, f"Tersimpan di Memori Lokal Aplikasi ({id_lpj}). {status_msg}"
+        return True, f"RAB ({id_rab}) tersimpan di Memori Lokal. {status_msg}"
 
     try:
         sh = client.open_by_key(spreadsheet_id)
-        ws_db, ws_rk = ensure_worksheets_ready(sh)
+        ws_rab, _, ws_rk = ensure_worksheets_ready(sh)
 
-        existing_db_vals = ws_db.get_all_values()
-        new_db_matrix = [COLS_DB_LPJ]
-        updated_existing = False
-
-        for r in existing_db_vals[1:]:
+        existing_vals = ws_rab.get_all_values()
+        new_matrix = [COLS_DB_RAB]
+        updated = False
+        for r in existing_vals[1:]:
             if not any(str(c).strip() for c in r):
                 continue
-            if len(r) > 0 and r[0] == id_lpj:
-                new_db_matrix.append([db_row_dict[c] for c in COLS_DB_LPJ])
-                updated_existing = True
+            if len(r) > 0 and r[0] == id_rab:
+                new_matrix.append([rab_row_dict[c] for c in COLS_DB_RAB])
+                updated = True
             else:
-                padded = list(r) + [""] * max(0, len(COLS_DB_LPJ) - len(r))
-                new_db_matrix.append(padded[:len(COLS_DB_LPJ)])
+                padded = list(r) + [""] * max(0, len(COLS_DB_RAB) - len(r))
+                new_matrix.append(padded[:len(COLS_DB_RAB)])
+        if not updated:
+            new_matrix.append([rab_row_dict[c] for c in COLS_DB_RAB])
 
-        if not updated_existing:
-            new_db_matrix.append([db_row_dict[c] for c in COLS_DB_LPJ])
-
-        ws_db.clear()
-        ws_db.batch_update(
-            [{"range": f"A1:N{len(new_db_matrix)}", "values": new_db_matrix}],
+        ws_rab.clear()
+        ws_rab.batch_update(
+            [{"range": f"A1:J{len(new_matrix)}", "values": new_matrix}],
             value_input_option="USER_ENTERED",
         )
 
-        existing_rk_vals = ws_rk.get_all_values()
-        new_rk_matrix = [COLS_REKAP_DANA]
-        for r in existing_rk_vals[1:]:
+        existing_rk = ws_rk.get_all_values()
+        new_rk = [COLS_REKAP_DANA]
+        for r in existing_rk[1:]:
             if not any(str(c).strip() for c in r):
                 continue
-            if len(r) > 0 and r[0] != id_lpj:
+            if len(r) > 0 and r[0] != id_rab:
                 padded = list(r) + [""] * max(0, len(COLS_REKAP_DANA) - len(r))
-                new_rk_matrix.append(padded[:len(COLS_REKAP_DANA)])
-
-        for item_d in rekap_dicts:
-            new_rk_matrix.append([item_d[c] for c in COLS_REKAP_DANA])
+                new_rk.append(padded[:len(COLS_REKAP_DANA)])
+        for d in rekap_dicts:
+            new_rk.append([d[c] for c in COLS_REKAP_DANA])
 
         ws_rk.clear()
         ws_rk.batch_update(
-            [{"range": f"A1:I{len(new_rk_matrix)}", "values": new_rk_matrix}],
+            [{"range": f"A1:J{len(new_rk)}", "values": new_rk}],
             value_input_option="USER_ENTERED",
         )
 
         fetch_sheet_bundle_cached.clear()
-        return True, f"Berhasil disimpan ke Google Sheets ({SHEET_DB_LPJ} & {SHEET_REKAP_DANA}) dengan ID: {id_lpj}"
+        return True, f"RAB ({id_rab}) berhasil disimpan ke Google Sheets ({SHEET_DB_RAB} & {SHEET_REKAP_DANA})!"
     except Exception as e:
-        return True, f"Tersimpan di Lokal ({id_lpj}), namun gagal sinkron ke GSheet: {e}"
+        return True, f"RAB ({id_rab}) tersimpan di Lokal, namun gagal sinkron ke Cloud: {e}"
+
+
+def save_lpj_to_storage(lpj_payload: dict, spreadsheet_id: str, creds_json_str: str = "") -> tuple:
+    """Menyimpan dokumen LPJ ke memori lokal dan Google Sheets (DATABASE_LPJ & REKAP_ITEM_DANA)."""
+    id_lpj = lpj_payload.get("id_lpj") or ("LPJ-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    lpj_payload["id_lpj"] = id_lpj
+    waktu_simpan = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    tgl_lap_str = str(lpj_payload.get("tgl_laporan", date.today()))
+    tgl_acara_str = lpj_payload.get("tgl_acara_manual", "").strip() or format_hari_tanggal_indo(lpj_payload.get("tgl_acara", date.today()))
+
+    df_items = normalize_items_df(lpj_payload.get("items_dana", []), lpj_payload.get("ket_tabel_dana", ""))
+    total_dana = int(df_items["HARGA TOTAL"].sum()) if not df_items.empty else 0
+
+    serializable = dict(lpj_payload)
+    if isinstance(serializable.get("tgl_laporan"), (date, datetime)):
+        serializable["tgl_laporan"] = serializable["tgl_laporan"].strftime("%Y-%m-%d")
+    if isinstance(serializable.get("tgl_acara"), (date, datetime)):
+        serializable["tgl_acara"] = serializable["tgl_acara"].strftime("%Y-%m-%d")
+    serializable["items_dana"] = df_items.to_dict(orient="records")
+
+    lpj_row_dict = {
+        "ID_LPJ": id_lpj,
+        "ID_RAB_REF": lpj_payload.get("id_rab_ref", ""),
+        "WAKTU_SIMPAN": waktu_simpan,
+        "TGL_LAPORAN": tgl_lap_str,
+        "NAMA_KEGIATAN": lpj_payload.get("nama_kegiatan", ""),
+        "TEMA_KEGIATAN": lpj_payload.get("tema_kegiatan", ""),
+        "KONTEKS_HUT": lpj_payload.get("konteks_hut", ""),
+        "TGL_ACARA": tgl_acara_str,
+        "WAKTU_ACARA": lpj_payload.get("waktu_acara", ""),
+        "TEMPAT_ACARA": lpj_payload.get("tempat_acara", ""),
+        "SUMBER_DANA": lpj_payload.get("sumber_dana", ""),
+        "KET_TABEL_DANA": lpj_payload.get("ket_tabel_dana", ""),
+        "TOTAL_DANA": total_dana,
+        "PENANDATANGAN": lpj_payload.get("nama_penandatangan", ""),
+        "PAYLOAD_JSON": json.dumps(serializable, ensure_ascii=False),
+    }
+
+    rekap_dicts = []
+    for _, r in df_items.iterrows():
+        rekap_dicts.append({
+            "ID_DOKUMEN": id_lpj,
+            "JENIS_DOK": "LPJ",
+            "TGL_ACARA": tgl_acara_str,
+            "NAMA_KEGIATAN": lpj_payload.get("nama_kegiatan", ""),
+            "NO_ITEM": int(r["NO"]),
+            "KEBUTUHAN_KEGIATAN": str(r["KEBUTUHAN KEGIATAN"]),
+            "JUMLAH": int(r["JUMLAH"]),
+            "HARGA_SATUAN": int(r["HARGA SATUAN"]),
+            "HARGA_TOTAL": int(r["HARGA TOTAL"]),
+            "KETERANGAN": str(r["KETERANGAN"]),
+        })
+
+    local_lpj = [row for row in st.session_state.get("local_db_lpj", []) if row.get("ID_LPJ") != id_lpj]
+    local_lpj.insert(0, lpj_row_dict)
+    st.session_state["local_db_lpj"] = local_lpj
+
+    local_rk = [row for row in st.session_state.get("local_rekap_dana", []) if row.get("ID_DOKUMEN") != id_lpj]
+    local_rk.extend(rekap_dicts)
+    st.session_state["local_rekap_dana"] = local_rk
+
+    client, status_msg = get_gspread_client(creds_json_str)
+    if client is None:
+        return True, f"LPJ ({id_lpj}) tersimpan di Memori Lokal. {status_msg}"
+
+    try:
+        sh = client.open_by_key(spreadsheet_id)
+        _, ws_lpj, ws_rk = ensure_worksheets_ready(sh)
+
+        existing_vals = ws_lpj.get_all_values()
+        new_matrix = [COLS_DB_LPJ]
+        updated = False
+        for r in existing_vals[1:]:
+            if not any(str(c).strip() for c in r):
+                continue
+            if len(r) > 0 and r[0] == id_lpj:
+                new_matrix.append([lpj_row_dict[c] for c in COLS_DB_LPJ])
+                updated = True
+            else:
+                padded = list(r) + [""] * max(0, len(COLS_DB_LPJ) - len(r))
+                new_matrix.append(padded[:len(COLS_DB_LPJ)])
+        if not updated:
+            new_matrix.append([lpj_row_dict[c] for c in COLS_DB_LPJ])
+
+        ws_lpj.clear()
+        ws_lpj.batch_update(
+            [{"range": f"A1:O{len(new_matrix)}", "values": new_matrix}],
+            value_input_option="USER_ENTERED",
+        )
+
+        existing_rk = ws_rk.get_all_values()
+        new_rk = [COLS_REKAP_DANA]
+        for r in existing_rk[1:]:
+            if not any(str(c).strip() for c in r):
+                continue
+            if len(r) > 0 and r[0] != id_lpj:
+                padded = list(r) + [""] * max(0, len(COLS_REKAP_DANA) - len(r))
+                new_rk.append(padded[:len(COLS_REKAP_DANA)])
+        for d in rekap_dicts:
+            new_rk.append([d[c] for c in COLS_REKAP_DANA])
+
+        ws_rk.clear()
+        ws_rk.batch_update(
+            [{"range": f"A1:J{len(new_rk)}", "values": new_rk}],
+            value_input_option="USER_ENTERED",
+        )
+
+        fetch_sheet_bundle_cached.clear()
+        return True, f"LPJ ({id_lpj}) berhasil disimpan ke Google Sheets ({SHEET_DB_LPJ} & {SHEET_REKAP_DANA})!"
+    except Exception as e:
+        return True, f"LPJ ({id_lpj}) tersimpan di Lokal, namun gagal sinkron ke Cloud: {e}"
 
 
 # ==============================================================================
-# BAGIAN 4: ENGINE DOKUMEN WORD ("ZERO-LOSS TEMPLATE CLONING" & FALLBACK KOP)
+# BAGIAN 4: ENGINE DOKUMEN WORD (RAB & LPJ) + LIBREOFFICE HEADLESS PDF CACHED
 # ==============================================================================
 
-def find_template_docx_path() -> str:
-    """Mencari file LPJ_DWP GABUNGAN DI BLITAR_2026-1.docx di direktori kerja atau subdirektori."""
+def find_template_file(filename: str) -> str:
+    """Mencari file template .docx di direktori kerja atau subdirektori."""
     candidates = [
-        TEMPLATE_FILENAME,
-        os.path.join(os.getcwd(), TEMPLATE_FILENAME),
+        filename,
+        os.path.join(os.getcwd(), filename),
     ]
     for root_dir, _, files in os.walk(os.getcwd()):
-        if TEMPLATE_FILENAME in files:
-            candidates.append(os.path.join(root_dir, TEMPLATE_FILENAME))
+        if filename in files:
+            candidates.append(os.path.join(root_dir, filename))
     for path in candidates:
         if path and os.path.isfile(path):
             return path
@@ -761,7 +940,7 @@ def get_default_assets_bytes() -> dict:
     sig_bytes = base64.b64decode(EMBEDDED_SIG_B64)
 
     tpl_bytes = st.session_state.get("uploaded_template_bytes")
-    tpl_path = find_template_docx_path()
+    tpl_path = find_template_file(TEMPLATE_LPJ_FILENAME)
 
     try:
         if tpl_bytes:
@@ -785,7 +964,7 @@ def get_default_assets_bytes() -> dict:
     }
 
 
-def _set_cell_margins(cell, top=60, bottom=60, left=100, right=100):
+def _set_cell_margins(cell, top=42, bottom=42, left=65, right=65):
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = OxmlElement("w:tcMar")
     for m_name, val in [("top", top), ("bottom", bottom), ("left", left), ("right", right)]:
@@ -831,12 +1010,10 @@ def _build_fallback_header(section, logo1_bytes: bytes, logo2_bytes: bytes):
         htbl.rows[0].cells[i].width = w
         htbl.rows[0].cells[i].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
-    # Logo Kiri
     p_left = htbl.rows[0].cells[0].paragraphs[0]
     p_left.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_left.add_run().add_picture(io.BytesIO(logo1_bytes), width=Cm(1.95))
 
-    # Teks Kop Tengah
     c_mid = htbl.rows[0].cells[1]
     p1 = c_mid.paragraphs[0]
     p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -869,12 +1046,10 @@ def _build_fallback_header(section, logo1_bytes: bytes, logo2_bytes: bytes):
     r3.font.name = "Calibri"
     r3.font.size = Pt(6.5)
 
-    # Logo Kanan
     p_right = htbl.rows[0].cells[2].paragraphs[0]
     p_right.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_right.add_run().add_picture(io.BytesIO(logo2_bytes), width=Cm(2.25))
 
-    # Garis bawah kop surat
     p_line = header.add_paragraph()
     p_line.paragraph_format.space_before = Pt(2)
     p_line.paragraph_format.space_after = Pt(4)
@@ -886,30 +1061,23 @@ def _build_fallback_header(section, logo1_bytes: bytes, logo2_bytes: bytes):
     p_line._p.get_or_add_pPr().append(pBdr)
 
 
-def generate_lpj_docx_bytes(payload: dict, custom_sig_bytes: bytes = None, attachment_images: list = None) -> bytes:
-    """
-    Mesin utama pembuat dokumen Word (.docx) dengan Zero-Loss Template Cloning.
-    Menjaga 100% keaslian Kop Surat & Tanda Tangan dari LPJ_DWP GABUNGAN DI BLITAR_2026-1.docx.
-    """
+def _prepare_cloned_document():
+    """Membuka dokumen dengan Kop Surat Resmi DWP KPPBC TMC Malang yang di-clone 100% utuh."""
     assets = get_default_assets_bytes()
-    sig_to_use = custom_sig_bytes if custom_sig_bytes else assets["sig"]
-
     tpl_bytes = st.session_state.get("uploaded_template_bytes")
-    tpl_path = find_template_docx_path()
+    tpl_path = find_template_file(TEMPLATE_LPJ_FILENAME) or find_template_file(TEMPLATE_RAB_FILENAME)
 
-    used_cloned_template = False
+    used_cloned = False
     if tpl_bytes:
         doc = docx.Document(io.BytesIO(tpl_bytes))
-        used_cloned_template = True
+        used_cloned = True
     elif tpl_path:
         doc = docx.Document(tpl_path)
-        used_cloned_template = True
+        used_cloned = True
     else:
         doc = docx.Document()
 
-    if used_cloned_template:
-        # Di template asli, referensi header berada pada sectPr di dalam paragraf ke-17.
-        # Kita pindahkan headerReference tersebut ke sectPr utama dokumen sebelum menghapus isi body lama!
+    if used_cloned:
         hdr_ref = None
         for p in doc.paragraphs:
             pPr = p._p.find(qn("w:pPr"))
@@ -940,10 +1108,233 @@ def generate_lpj_docx_bytes(payload: dict, custom_sig_bytes: bytes = None, attac
         sec.header_distance = Cm(1.28)
         _build_fallback_header(sec, assets["logo1"], assets["logo2"])
 
-    # Pastikan margin bawah cukup aman untuk konversi PDF
     for sec in doc.sections:
         if sec.bottom_margin < Cm(1.0):
             sec.bottom_margin = Cm(1.0)
+
+    return doc, assets
+
+
+def _build_6col_financial_table(doc, df_items: pd.DataFrame, merge_ket: bool, ket_global: str):
+    """Membangun Tabel 6 Kolom Presisi (Anti-Potong & Anti-Lompat Baris) untuk RAB maupun LPJ."""
+    n_items = len(df_items)
+    total_rows = n_items + 3
+    col_widths_cm = [1.05, 5.80, 1.85, 2.95, 3.10, 4.45]
+
+    table = doc.add_table(rows=total_rows, cols=6)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    _set_table_borders(table, color="505050", sz="4")
+
+    tblPr = table._tbl.tblPr
+    tblPr.append(parse_xml(f'<w:tblLayout {nsdecls("w")} w:type="fixed"/>'))
+    tblPr.append(parse_xml(f'<w:tblInd {nsdecls("w")} w:w="400" w:type="dxa"/>'))
+
+    for col_idx, w_cm in enumerate(col_widths_cm):
+        table.columns[col_idx].width = Cm(w_cm)
+
+    def _format_cell_text(cell, text: str, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5, no_wrap=False):
+        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        _set_cell_margins(cell, top=42, bottom=42, left=65, right=65)
+        if no_wrap:
+            tcPr = cell._tc.get_or_add_tcPr()
+            tcPr.append(OxmlElement("w:noWrap"))
+        p = cell.paragraphs[0]
+        p.alignment = align
+        p.paragraph_format.space_before = Pt(1)
+        p.paragraph_format.space_after = Pt(1)
+        p.paragraph_format.line_spacing = 1.05
+        for r_old in list(p.runs):
+            p._p.remove(r_old._r)
+        r = p.add_run(text)
+        r.font.name = "Arial"
+        r.font.size = Pt(size_pt)
+        r.font.bold = bold
+        r.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+
+    r0 = table.rows[0]
+    r1 = table.rows[1]
+    for h_row in (r0, r1):
+        trPr = h_row._tr.get_or_add_trPr()
+        trPr.append(OxmlElement("w:tblHeader"))
+        trPr.append(OxmlElement("w:cantSplit"))
+
+    r0.cells[3].merge(r0.cells[4])
+    for c_idx in (0, 1, 2, 5):
+        r0.cells[c_idx].merge(r1.cells[c_idx])
+
+    _format_cell_text(r0.cells[0], "NO", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5, no_wrap=True)
+    _format_cell_text(r0.cells[1], "KEBUTUHAN KEGIATAN", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5)
+    _format_cell_text(r0.cells[2], "JUMLAH", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5, no_wrap=True)
+    _format_cell_text(r0.cells[3], "DANA", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5)
+    _format_cell_text(r0.cells[5], "KETERANGAN", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5)
+
+    _format_cell_text(r1.cells[3], "HARGA SATUAN", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.0, no_wrap=True)
+    _format_cell_text(r1.cells[4], "HARGA TOTAL", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.0, no_wrap=True)
+
+    for h_r in (r0, r1):
+        for c_idx, w_cm in enumerate(col_widths_cm):
+            h_r.cells[c_idx].width = Cm(w_cm)
+            _set_cell_shading(h_r.cells[c_idx], "F8FAFC")
+
+    for idx_df, row_data in df_items.iterrows():
+        row_pos = 2 + idx_df
+        tr_row = table.rows[row_pos]
+        tr_row._tr.get_or_add_trPr().append(OxmlElement("w:cantSplit"))
+
+        for c_idx, w_cm in enumerate(col_widths_cm):
+            tr_row.cells[c_idx].width = Cm(w_cm)
+
+        no_str = str(int(row_data["NO"]))
+        keb_str = str(row_data["KEBUTUHAN KEGIATAN"])
+        jml_str = str(int(row_data["JUMLAH"])) if int(row_data["JUMLAH"]) > 0 else "-"
+        hsat_str = fmt_rp_cell(row_data["HARGA SATUAN"], is_dash_if_zero=True)
+        htot_str = fmt_rp_cell(row_data["HARGA TOTAL"], is_dash_if_zero=True)
+        ket_item = str(row_data.get("KETERANGAN", ket_global) or "")
+
+        _format_cell_text(tr_row.cells[0], no_str, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5)
+        _format_cell_text(tr_row.cells[1], keb_str, align=WD_ALIGN_PARAGRAPH.LEFT, bold=False, size_pt=10.5)
+        _format_cell_text(tr_row.cells[2], jml_str, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5)
+        _format_cell_text(tr_row.cells[3], hsat_str, align=WD_ALIGN_PARAGRAPH.RIGHT, bold=False, size_pt=10.5, no_wrap=True)
+        _format_cell_text(tr_row.cells[4], htot_str, align=WD_ALIGN_PARAGRAPH.RIGHT, bold=False, size_pt=10.5, no_wrap=True)
+
+        if not merge_ket:
+            _format_cell_text(tr_row.cells[5], ket_item, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.0)
+
+    if merge_ket and n_items > 0:
+        first_ket_cell = table.rows[2].cells[5]
+        if n_items > 1:
+            last_ket_cell = table.rows[2 + n_items - 1].cells[5]
+            first_ket_cell.merge(last_ket_cell)
+        _format_cell_text(first_ket_cell, ket_global, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5)
+
+    r_tot = table.rows[total_rows - 1]
+    r_tot._tr.get_or_add_trPr().append(OxmlElement("w:cantSplit"))
+    for c_idx, w_cm in enumerate(col_widths_cm):
+        r_tot.cells[c_idx].width = Cm(w_cm)
+
+    r_tot.cells[0].merge(r_tot.cells[3])
+    total_keseluruhan = int(df_items["HARGA TOTAL"].sum()) if not df_items.empty else 0
+
+    _format_cell_text(r_tot.cells[0], "TOTAL", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5)
+    _format_cell_text(r_tot.cells[4], fmt_rp_cell(total_keseluruhan, is_dash_if_zero=False), align=WD_ALIGN_PARAGRAPH.RIGHT, bold=True, size_pt=10.5, no_wrap=True)
+    _format_cell_text(r_tot.cells[5], "", align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5)
+
+
+def generate_rab_docx_bytes(rab_payload: dict) -> bytes:
+    """
+    Mesin pembuat dokumen Word (.docx) khusus RAB sesuai pakem resmi RAB DWP GABUNGAN DI JEMBER.docx:
+    - Kop Surat Resmi DWP KPPBC TMC Malang
+    - Judul 3 Baris Terpusat (Bold, Kapital)
+    - Kalimat Pengantar Sumber Dana
+    - Tabel 6 Kolom Rincian Anggaran (Anti-Wrap & Anti-Potong)
+    - Catatan Kaki (*Note :) dengan daftar ber-bullet
+    """
+    doc, _ = _prepare_cloned_document()
+
+    def _add_p(text="", align=WD_ALIGN_PARAGRAPH.LEFT, left_cm=0.73, right_cm=0.80, first_line_cm=0.0, before_pt=0, after_pt=3, bold=False, italic=False, size_pt=11.0):
+        p = doc.add_paragraph()
+        p.alignment = align
+        pf = p.paragraph_format
+        pf.left_indent = Cm(left_cm)
+        pf.right_indent = Cm(right_cm)
+        pf.first_line_indent = Cm(first_line_cm)
+        pf.space_before = Pt(before_pt)
+        pf.space_after = Pt(after_pt)
+        pf.line_spacing = 1.15
+        pf.keep_together = True
+        if text:
+            r = p.add_run(text)
+            r.font.name = "Arial"
+            r.font.size = Pt(size_pt)
+            r.font.bold = bold
+            r.font.italic = italic
+            r.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+        return p
+
+    # 1. Judul 3 Baris Terpusat (Bold, Kapital)
+    b1 = (rab_payload.get("baris_1_judul") or "RANCANGAN ANGGARAN BIAYA").strip().upper()
+    b2 = (rab_payload.get("nama_kegiatan_rab") or "PELAKSANAAN PERTEMUAN RUTIN PAGUYUBAN DWP").strip().upper()
+    b3 = (rab_payload.get("lokasi_acara_rab") or "").strip().upper()
+    if b3 and not b3.startswith("("):
+        b3 = f"({b3})"
+
+    p_t1 = _add_p(b1, align=WD_ALIGN_PARAGRAPH.CENTER, left_cm=0.73, right_cm=0.80, before_pt=10, after_pt=1, bold=True, size_pt=11.0)
+    p_t1.paragraph_format.keep_with_next = True
+
+    p_t2 = _add_p(b2, align=WD_ALIGN_PARAGRAPH.CENTER, left_cm=0.73, right_cm=0.80, before_pt=0, after_pt=1, bold=True, size_pt=11.0)
+    p_t2.paragraph_format.keep_with_next = True
+
+    if b3:
+        p_t3 = _add_p(b3, align=WD_ALIGN_PARAGRAPH.CENTER, left_cm=0.73, right_cm=0.80, before_pt=0, after_pt=12, bold=True, size_pt=11.0)
+        p_t3.paragraph_format.keep_with_next = True
+
+    # 2. Kalimat Pengantar Sumber Dana
+    sumber = (rab_payload.get("sumber_dana_rab") or "Kas Dharma Wanita KPPBC TMC Malang").strip()
+    p_pengantar = _add_p(
+        f"Dana untuk kegiatan ini berasal dari {sumber}. Dengan rincian dana sebagai berikut :",
+        align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+        left_cm=0.73,
+        right_cm=0.80,
+        first_line_cm=1.25,
+        before_pt=4,
+        after_pt=8,
+        size_pt=11.0,
+    )
+    p_pengantar.paragraph_format.keep_with_next = True
+
+    # 3. Tabel 6 Kolom Rincian Anggaran
+    df_items = normalize_items_df(rab_payload.get("items_rab", []), rab_payload.get("ket_tabel_rab", ""))
+    _build_6col_financial_table(
+        doc,
+        df_items=df_items,
+        merge_ket=bool(rab_payload.get("merge_ket_rab", False)),
+        ket_global=str(rab_payload.get("ket_tabel_rab", "") or ""),
+    )
+
+    # 4. Catatan Kaki (*Note :) dengan Bullet
+    note_raw = (rab_payload.get("catatan_note_rab") or "").strip()
+    note_lines = [ln.strip() for ln in note_raw.split(NL) if ln.strip()]
+    if note_lines:
+        p_note_hdr = _add_p(
+            "*Note :",
+            align=WD_ALIGN_PARAGRAPH.LEFT,
+            left_cm=0.73,
+            right_cm=0.80,
+            before_pt=10,
+            after_pt=3,
+            italic=True,
+            size_pt=10.0,
+        )
+        p_note_hdr.paragraph_format.keep_with_next = True
+
+        for ln in note_lines:
+            clean_ln = ln.lstrip("•-* ").strip()
+            p_b = doc.add_paragraph()
+            p_b.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            pf_b = p_b.paragraph_format
+            pf_b.left_indent = Cm(1.55)
+            pf_b.right_indent = Cm(0.80)
+            pf_b.first_line_indent = Cm(-0.50)
+            pf_b.space_before = Pt(1)
+            pf_b.space_after = Pt(2)
+            pf_b.line_spacing = 1.12
+            pf_b.tab_stops.add_tab_stop(Cm(1.55), WD_TAB_ALIGNMENT.LEFT)
+            r_b = p_b.add_run(BULLET_CHAR + TAB + clean_ln)
+            r_b.font.name = "Arial"
+            r_b.font.size = Pt(10.0)
+
+    out_buf = io.BytesIO()
+    doc.save(out_buf)
+    return out_buf.getvalue()
+
+
+def generate_lpj_docx_bytes(payload: dict, custom_sig_bytes: bytes = None, attachment_images: list = None) -> bytes:
+    """
+    Mesin utama pembuat dokumen Word (.docx) LPJ sesuai pakem resmi LPJ_DWP GABUNGAN DI BLITAR_2026-1.docx.
+    """
+    doc, assets = _prepare_cloned_document()
+    sig_to_use = custom_sig_bytes if custom_sig_bytes else assets["sig"]
 
     def _add_styled_p(text="", align=WD_ALIGN_PARAGRAPH.LEFT, left_cm=0.73, right_cm=0.80, first_line_cm=0.0, space_before_pt=0, space_after_pt=3, italic=False, bold=False, size_pt=11.0):
         p = doc.add_paragraph()
@@ -1080,121 +1471,16 @@ def generate_lpj_docx_bytes(payload: dict, custom_sig_bytes: bytes = None, attac
         size_pt=11.0,
     )
 
-    # 7. Konstruksi Tabel Rincian Dana 6 Kolom (Anti-Potong & Anti-Lompat Baris)
+    # 7. Tabel 6 Kolom Rincian Dana
     df_items = normalize_items_df(payload.get("items_dana", []), payload.get("ket_tabel_dana", ""))
-    n_items = len(df_items)
-    total_rows = n_items + 3  # 2 baris header + N baris item + 1 baris TOTAL
+    _build_6col_financial_table(
+        doc,
+        df_items=df_items,
+        merge_ket=bool(payload.get("merge_ket_vertikal", True)),
+        ket_global=str(payload.get("ket_tabel_dana", "Kas DWP BC Malang & Donatur Anggota") or ""),
+    )
 
-    col_widths_cm = [1.05, 5.80, 1.85, 2.95, 3.10, 4.45]  # Total 19.20 cm, NO & JUMLAH anti-wrap
-    table = doc.add_table(rows=total_rows, cols=6)
-    table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    table.autofit = False
-    _set_table_borders(table, color="505050", sz="4")
-
-    # Kunci tblLayout fixed & indentasi tabel sesuai template
-    tblPr = table._tbl.tblPr
-    tblPr.append(parse_xml(f'<w:tblLayout {nsdecls("w")} w:type="fixed"/>'))
-    tblPr.append(parse_xml(f'<w:tblInd {nsdecls("w")} w:w="400" w:type="dxa"/>'))
-
-    for col_idx, w_cm in enumerate(col_widths_cm):
-        table.columns[col_idx].width = Cm(w_cm)
-
-    def _format_cell_text(cell, text: str, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5, no_wrap=False):
-        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-        _set_cell_margins(cell, top=42, bottom=42, left=65, right=65)
-        if no_wrap:
-            tcPr = cell._tc.get_or_add_tcPr()
-            tcPr.append(OxmlElement("w:noWrap"))
-        p = cell.paragraphs[0]
-        p.alignment = align
-        p.paragraph_format.space_before = Pt(1)
-        p.paragraph_format.space_after = Pt(1)
-        p.paragraph_format.line_spacing = 1.05
-        for r_old in list(p.runs):
-            p._p.remove(r_old._r)
-        r = p.add_run(text)
-        r.font.name = "Arial"
-        r.font.size = Pt(size_pt)
-        r.font.bold = bold
-        r.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
-
-    # Nested Header Baris 0 & Baris 1
-    r0 = table.rows[0]
-    r1 = table.rows[1]
-    for h_row in (r0, r1):
-        trPr = h_row._tr.get_or_add_trPr()
-        trPr.append(OxmlElement("w:tblHeader"))
-        trPr.append(OxmlElement("w:cantSplit"))
-
-    # Merge horizontal DANA (Kolom 3 & 4 pada Baris 0)
-    r0.cells[3].merge(r0.cells[4])
-    # Merge vertikal Kolom 0, 1, 2, 5 antara Baris 0 dan Baris 1
-    for c_idx in (0, 1, 2, 5):
-        r0.cells[c_idx].merge(r1.cells[c_idx])
-
-    _format_cell_text(r0.cells[0], "NO", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5, no_wrap=True)
-    _format_cell_text(r0.cells[1], "KEBUTUHAN KEGIATAN", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5)
-    _format_cell_text(r0.cells[2], "JUMLAH", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5, no_wrap=True)
-    _format_cell_text(r0.cells[3], "DANA", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5)
-    _format_cell_text(r0.cells[5], "KETERANGAN", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5)
-
-    _format_cell_text(r1.cells[3], "HARGA SATUAN", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.0, no_wrap=True)
-    _format_cell_text(r1.cells[4], "HARGA TOTAL", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.0, no_wrap=True)
-
-    for h_r in (r0, r1):
-        for c_idx, w_cm in enumerate(col_widths_cm):
-            h_r.cells[c_idx].width = Cm(w_cm)
-            _set_cell_shading(h_r.cells[c_idx], "F8FAFC")
-
-    # Isi Baris Data (Item 1 s.d. N)
-    merge_ket = bool(payload.get("merge_ket_vertikal", True))
-    ket_global = (payload.get("ket_tabel_dana") or "Kas DWP BC Malang & Donatur Anggota").strip()
-
-    for idx_df, row_data in df_items.iterrows():
-        row_pos = 2 + idx_df
-        tr_row = table.rows[row_pos]
-        tr_row._tr.get_or_add_trPr().append(OxmlElement("w:cantSplit"))
-
-        for c_idx, w_cm in enumerate(col_widths_cm):
-            tr_row.cells[c_idx].width = Cm(w_cm)
-
-        no_str = str(int(row_data["NO"]))
-        keb_str = str(row_data["KEBUTUHAN KEGIATAN"])
-        jml_str = str(int(row_data["JUMLAH"])) if int(row_data["JUMLAH"]) > 0 else "-"
-        hsat_str = fmt_rp_cell(row_data["HARGA SATUAN"], is_dash_if_zero=True)
-        htot_str = fmt_rp_cell(row_data["HARGA TOTAL"], is_dash_if_zero=True)
-        ket_item = str(row_data.get("KETERANGAN", ket_global) or ket_global)
-
-        _format_cell_text(tr_row.cells[0], no_str, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5)
-        _format_cell_text(tr_row.cells[1], keb_str, align=WD_ALIGN_PARAGRAPH.LEFT, bold=False, size_pt=10.5)
-        _format_cell_text(tr_row.cells[2], jml_str, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5)
-        _format_cell_text(tr_row.cells[3], hsat_str, align=WD_ALIGN_PARAGRAPH.RIGHT, bold=False, size_pt=10.5, no_wrap=True)
-        _format_cell_text(tr_row.cells[4], htot_str, align=WD_ALIGN_PARAGRAPH.RIGHT, bold=False, size_pt=10.5, no_wrap=True)
-
-        if not merge_ket:
-            _format_cell_text(tr_row.cells[5], ket_item, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.0)
-
-    if merge_ket and n_items > 0:
-        first_ket_cell = table.rows[2].cells[5]
-        if n_items > 1:
-            last_ket_cell = table.rows[2 + n_items - 1].cells[5]
-            first_ket_cell.merge(last_ket_cell)
-        _format_cell_text(first_ket_cell, ket_global, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5)
-
-    # Baris Footer (TOTAL)
-    r_tot = table.rows[total_rows - 1]
-    r_tot._tr.get_or_add_trPr().append(OxmlElement("w:cantSplit"))
-    for c_idx, w_cm in enumerate(col_widths_cm):
-        r_tot.cells[c_idx].width = Cm(w_cm)
-
-    r_tot.cells[0].merge(r_tot.cells[3])
-    total_keseluruhan = int(df_items["HARGA TOTAL"].sum()) if not df_items.empty else 0
-
-    _format_cell_text(r_tot.cells[0], "TOTAL", align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size_pt=10.5)
-    _format_cell_text(r_tot.cells[4], fmt_rp_cell(total_keseluruhan, is_dash_if_zero=False), align=WD_ALIGN_PARAGRAPH.RIGHT, bold=True, size_pt=10.5, no_wrap=True)
-    _format_cell_text(r_tot.cells[5], "", align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5)
-
-    # 8. Paragraf Ucapan Terima Kasih Donatur (Opsional/Default Aktif)
+    # 8. Paragraf Ucapan Terima Kasih Donatur
     if payload.get("tampilkan_ucapan_donatur", True):
         teks_donatur = (payload.get("teks_ucapan_donatur") or DEFAULT_UCAPAN_DONATUR).strip()
         if teks_donatur:
@@ -1210,7 +1496,7 @@ def generate_lpj_docx_bytes(payload: dict, custom_sig_bytes: bytes = None, attac
             )
             p_don.paragraph_format.keep_with_next = True
 
-    # 9. Paragraf Penutup (Otomatis menyisipkan nama_kegiatan)
+    # 9. Paragraf Penutup
     nama_keg = (payload.get("nama_kegiatan") or "Kegiatan Dharma Wanita Persatuan").strip()
     teks_penutup = (
         f"Demikian laporan pertanggung jawaban {nama_keg} ini kami sampaikan, "
@@ -1271,7 +1557,7 @@ def generate_lpj_docx_bytes(payload: dict, custom_sig_bytes: bytes = None, attac
             r_ig.font.size = Pt(10.0)
             r_ig.font.italic = True
 
-    # 12. Blok Tanda Tangan (Inden Kanan Presisi & Keep With Next agar tidak terpotong halaman)
+    # 12. Blok Tanda Tangan
     jab_1 = (payload.get("jabatan_baris_1") or "Ketua Dharma Wanita Persatuan").strip()
     jab_2 = (payload.get("jabatan_baris_2") or "KPPBC Tipe Madya Cukai Malang").strip()
     nama_ttd = (payload.get("nama_penandatangan") or "Ny. Rini Johan Pandores").strip()
@@ -1314,7 +1600,7 @@ def generate_lpj_docx_bytes(payload: dict, custom_sig_bytes: bytes = None, attac
         size_pt=11.0,
     )
 
-    # 13. Opsional Lampiran Foto Dokumentasi / Nota Kwitansi (Auto-Grid 2x2)
+    # 13. Lampiran Foto Dokumentasi / Nota Kwitansi (Auto-Grid 2x2)
     if attachment_images:
         doc.add_page_break()
         p_lamp = _add_styled_p(
@@ -1360,16 +1646,17 @@ def generate_lpj_docx_bytes(payload: dict, custom_sig_bytes: bytes = None, attac
     return out_buf.getvalue()
 
 
+@st.cache_data(show_spinner=False)
 def convert_docx_bytes_to_pdf_bytes(docx_bytes: bytes) -> tuple:
-    """Mengonversi byte .docx menjadi byte .pdf secara presisi menggunakan LibreOffice Headless."""
+    """Mengonversi byte .docx menjadi byte .pdf menggunakan LibreOffice Headless (Cached Anti-Lag)."""
     lo_bin = shutil.which("libreoffice") or shutil.which("soffice")
     if not lo_bin:
         return None, "LibreOffice Headless tidak ditemukan di server. Gunakan tombol Cetak PDF Browser di bawah."
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
-            in_docx = os.path.join(tmpdir, "LPJ_DWP.docx")
-            out_pdf = os.path.join(tmpdir, "LPJ_DWP.pdf")
+            in_docx = os.path.join(tmpdir, "DOKUMEN_DWP.docx")
+            out_pdf = os.path.join(tmpdir, "DOKUMEN_DWP.pdf")
             with open(in_docx, "wb") as f:
                 f.write(docx_bytes)
 
@@ -1393,7 +1680,7 @@ def convert_docx_bytes_to_pdf_bytes(docx_bytes: bytes) -> tuple:
 
 
 # ==============================================================================
-# BAGIAN 5: DIRECT DOWNLOAD BASE64 & LIVE PREVIEW KERTAS A4
+# BAGIAN 5: DIRECT DOWNLOAD BASE64 & LIVE PREVIEW KERTAS A4 (RAB & LPJ)
 # ==============================================================================
 
 def make_direct_download_html(file_bytes: bytes, filename: str, mime_type: str, label: str, bg_gradient: str) -> str:
@@ -1402,106 +1689,273 @@ def make_direct_download_html(file_bytes: bytes, filename: str, mime_type: str, 
     return (
         f'<a href="data:{mime_type};base64,{b64_data}" download="{filename}" '
         f'style="display:flex;align-items:center;justify-content:center;gap:8px;'
-        f'width:100%;min-height:52px;padding:12px 18px;border-radius:12px;'
+        f'width:100%;min-height:48px;padding:10px 16px;border-radius:10px;'
         f'background:{bg_gradient};color:#FFFFFF !important;'
-        f'-webkit-text-fill-color:#FFFFFF !important;font-weight:700;font-size:15px;'
-        f'text-decoration:none;box-shadow:0 4px 12px rgba(124,45,18,0.22);'
-        f'border:1px solid rgba(245,158,11,0.45);text-align:center;">'
+        f'-webkit-text-fill-color:#FFFFFF !important;font-weight:700;font-size:14.5px;'
+        f'text-decoration:none;box-shadow:0 4px 12px rgba(15,23,42,0.14);'
+        f'border:1px solid rgba(255,255,255,0.25);text-align:center;">'
         f"{label}</a>"
     )
 
 
-def build_a4_live_preview_html(payload: dict, custom_sig_bytes: bytes = None) -> str:
-    """Membangun pratinjau visual HTML Kertas A4 yang persis dengan LPJ DWP KPPBC TMC Malang."""
+def _build_kop_html(logo1_b64: str, logo2_b64: str) -> str:
+    return f"""
+    <table class="kop-table">
+        <tr>
+            <td style="width:78px;text-align:center;">
+                <img src="data:image/jpeg;base64,{logo1_b64}" style="width:68px;height:auto;"/>
+            </td>
+            <td style="text-align:center;">
+                <div style="font-family:'Times New Roman',serif;font-size:20px;font-weight:700;font-style:italic;letter-spacing:0.2px;">
+                    Dharma Wanita Persatuan
+                </div>
+                <div style="font-size:11px;font-weight:700;line-height:1.25;margin-top:2px;">
+                    DIREKTORAT JENDERAL BEA DAN CUKAI KANTOR WILAYAH DJBC JAWA TIMUR II<br/>
+                    KANTOR PENGAWASAN DAN PELAYANAN BEA DAN CUKAI TIPE MADYA CUKAI MALANG
+                </div>
+                <div style="font-size:8.5px;margin-top:3px;line-height:1.25;">
+                    JALAN SURABAYA NOMOR 2, MALANG 65145<br/>
+                    TELEPON (0341) 551628; FAKSIMILE (0341)554193; LAMAN <span style="color:#1D4ED8;text-decoration:underline;">WWW.BEACUKAIMALANG.COM</span><br/>
+                    PUSAT KONTAK LAYANAN 1500225; SUREL <span style="color:#1D4ED8;text-decoration:underline;">INFO@CUSTOMS.GO.ID</span>
+                </div>
+            </td>
+            <td style="width:88px;text-align:center;">
+                <img src="data:image/png;base64,{logo2_b64}" style="width:78px;height:auto;"/>
+            </td>
+        </tr>
+    </table>
+    """
+
+
+def build_a4_live_preview_html(doc_mode: str, payload: dict, custom_sig_bytes: bytes = None) -> str:
+    """Membangun pratinjau visual HTML Kertas A4 untuk RAB maupun LPJ."""
     assets = get_default_assets_bytes()
     logo1_b64 = base64.b64encode(assets["logo1"]).decode("ascii")
     logo2_b64 = base64.b64encode(assets["logo2"]).decode("ascii")
-    sig_bytes = custom_sig_bytes if custom_sig_bytes else assets["sig"]
-    sig_b64 = base64.b64encode(sig_bytes).decode("ascii") if sig_bytes else ""
+    kop_html = _build_kop_html(logo1_b64, logo2_b64)
 
-    tgl_laporan_indo = format_hari_tanggal_indo(payload.get("tgl_laporan", date.today()))
-    tgl_acara_indo = (payload.get("tgl_acara_manual") or "").strip() or format_hari_tanggal_indo(payload.get("tgl_acara", date.today()))
-    waktu_acara = (payload.get("waktu_acara") or "08.30 - selesai").strip()
-    tempat_acara = (payload.get("tempat_acara") or "-").strip()
-    teks_pembuka = build_paragraf_pembuka(
-        payload.get("nama_kegiatan", ""),
-        payload.get("tema_kegiatan", ""),
-        payload.get("konteks_hut", ""),
-    )
+    if doc_mode == "RAB":
+        b1 = (payload.get("baris_1_judul") or "RANCANGAN ANGGARAN BIAYA").strip().upper()
+        b2 = (payload.get("nama_kegiatan_rab") or "").strip().upper()
+        b3 = (payload.get("lokasi_acara_rab") or "").strip().upper()
+        if b3 and not b3.startswith("("):
+            b3 = f"({b3})"
 
-    rangkaian_raw = (payload.get("rangkaian_kegiatan") or "").strip()
-    rangkaian_items = [ln.strip() for ln in rangkaian_raw.split(NL) if ln.strip()]
-    ol_html = ""
-    for item_r in rangkaian_items:
-        clean_r = item_r
-        if "." in clean_r[:4]:
-            l_num, r_rest = clean_r.split(".", 1)
-            if l_num.strip().isdigit():
-                clean_r = r_rest.strip()
-        ol_html += f"<li style='margin-bottom:3px;'>{clean_r}</li>"
+        sumber = (payload.get("sumber_dana_rab") or "Kas Dharma Wanita KPPBC TMC Malang").strip()
+        df_items = normalize_items_df(payload.get("items_rab", []), payload.get("ket_tabel_rab", ""))
+        n_items = len(df_items)
+        merge_ket = bool(payload.get("merge_ket_rab", False))
+        ket_global = (payload.get("ket_tabel_rab") or "").strip()
+        total_dana = int(df_items["HARGA TOTAL"].sum()) if not df_items.empty else 0
 
-    df_items = normalize_items_df(payload.get("items_dana", []), payload.get("ket_tabel_dana", ""))
-    n_items = len(df_items)
-    merge_ket = bool(payload.get("merge_ket_vertikal", True))
-    ket_global = (payload.get("ket_tabel_dana") or "Kas DWP BC Malang & Donatur Anggota").strip()
-    total_dana = int(df_items["HARGA TOTAL"].sum()) if not df_items.empty else 0
+        rows_html = ""
+        for idx_df, r in df_items.iterrows():
+            no_str = str(int(r["NO"]))
+            keb_str = str(r["KEBUTUHAN KEGIATAN"])
+            jml_str = str(int(r["JUMLAH"])) if int(r["JUMLAH"]) > 0 else "-"
+            hsat_str = fmt_rp_cell(r["HARGA SATUAN"], is_dash_if_zero=True)
+            htot_str = fmt_rp_cell(r["HARGA TOTAL"], is_dash_if_zero=True)
+            ket_item = str(r.get("KETERANGAN", ket_global) or "")
 
-    rows_html = ""
-    for idx_df, r in df_items.iterrows():
-        no_str = str(int(r["NO"]))
-        keb_str = str(r["KEBUTUHAN KEGIATAN"])
-        jml_str = str(int(r["JUMLAH"])) if int(r["JUMLAH"]) > 0 else "-"
-        hsat_str = fmt_rp_cell(r["HARGA SATUAN"], is_dash_if_zero=True)
-        htot_str = fmt_rp_cell(r["HARGA TOTAL"], is_dash_if_zero=True)
-        ket_item = str(r.get("KETERANGAN", ket_global) or ket_global)
-
-        if merge_ket:
-            if idx_df == 0:
-                ket_td = f"<td rowspan='{n_items}' style='text-align:center;vertical-align:middle;padding:6px;'>{ket_global}</td>"
+            if merge_ket:
+                if idx_df == 0:
+                    ket_td = f"<td rowspan='{n_items}' style='text-align:center;vertical-align:middle;padding:6px;'>{ket_global}</td>"
+                else:
+                    ket_td = ""
             else:
-                ket_td = ""
-        else:
-            ket_td = f"<td style='text-align:center;vertical-align:middle;padding:4px 6px;'>{ket_item}</td>"
+                ket_td = f"<td style='text-align:center;vertical-align:middle;padding:4px 6px;'>{ket_item}</td>"
 
-        rows_html += (
-            "<tr>"
-            f"<td style='text-align:center;'>{no_str}</td>"
-            f"<td style='text-align:left;'>{keb_str}</td>"
-            f"<td style='text-align:center;'>{jml_str}</td>"
-            f"<td style='text-align:right;white-space:nowrap;'>{hsat_str}</td>"
-            f"<td style='text-align:right;white-space:nowrap;'>{htot_str}</td>"
-            f"{ket_td}"
-            "</tr>"
+            rows_html += (
+                "<tr>"
+                f"<td style='text-align:center;'>{no_str}</td>"
+                f"<td style='text-align:left;'>{keb_str}</td>"
+                f"<td style='text-align:center;'>{jml_str}</td>"
+                f"<td style='text-align:right;white-space:nowrap;'>{hsat_str}</td>"
+                f"<td style='text-align:right;white-space:nowrap;'>{htot_str}</td>"
+                f"{ket_td}"
+                "</tr>"
+            )
+
+        note_raw = (payload.get("catatan_note_rab") or "").strip()
+        note_lines = [ln.strip() for ln in note_raw.split(NL) if ln.strip()]
+        note_html = ""
+        if note_lines:
+            li_items = "".join(f"<li style='margin-bottom:4px;'>{ln.lstrip('•-* ').strip()}</li>" for ln in note_lines)
+            note_html = (
+                "<div style='margin:14px 24px 4px 24px;font-style:italic;font-size:12.5px;'>*Note :</div>"
+                f"<ul style='margin:2px 24px 12px 44px;font-size:12.5px;'>{li_items}</ul>"
+            )
+
+        body_content = f"""
+            <div style="text-align:center;font-weight:700;font-size:13.8px;line-height:1.4;margin:14px 24px 14px 24px;">
+                <div>{b1}</div>
+                <div>{b2}</div>
+                <div>{b3}</div>
+            </div>
+            <p class="lpj-p-indent">
+                Dana untuk kegiatan ini berasal dari {sumber}. Dengan rincian dana sebagai berikut :
+            </p>
+            <table class="dana-table">
+                <thead>
+                    <tr>
+                        <th rowspan="2" style="width:6%;">NO</th>
+                        <th rowspan="2" style="width:31%;">KEBUTUHAN KEGIATAN</th>
+                        <th rowspan="2" style="width:9%;">JUMLAH</th>
+                        <th colspan="2" style="width:32%;">DANA</th>
+                        <th rowspan="2" style="width:22%;">KETERANGAN</th>
+                    </tr>
+                    <tr>
+                        <th style="width:16%;">HARGA SATUAN</th>
+                        <th style="width:16%;">HARGA TOTAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                    <tr>
+                        <td colspan="4" style="text-align:center;font-weight:700;background:#F8FAFC;">TOTAL</td>
+                        <td style="text-align:right;font-weight:700;white-space:nowrap;background:#F8FAFC;">{fmt_rp_cell(total_dana, is_dash_if_zero=False)}</td>
+                        <td style="background:#F8FAFC;"></td>
+                    </tr>
+                </tbody>
+            </table>
+            {note_html}
+        """
+    else:
+        sig_bytes = custom_sig_bytes if custom_sig_bytes else assets["sig"]
+        sig_b64 = base64.b64encode(sig_bytes).decode("ascii") if sig_bytes else ""
+
+        tgl_laporan_indo = format_hari_tanggal_indo(payload.get("tgl_laporan", date.today()))
+        tgl_acara_indo = (payload.get("tgl_acara_manual") or "").strip() or format_hari_tanggal_indo(payload.get("tgl_acara", date.today()))
+        waktu_acara = (payload.get("waktu_acara") or "08.30 - selesai").strip()
+        tempat_acara = (payload.get("tempat_acara") or "-").strip()
+        teks_pembuka = build_paragraf_pembuka(
+            payload.get("nama_kegiatan", ""),
+            payload.get("tema_kegiatan", ""),
+            payload.get("konteks_hut", ""),
         )
 
-    ucapan_html = ""
-    if payload.get("tampilkan_ucapan_donatur", True):
-        teks_don = (payload.get("teks_ucapan_donatur") or DEFAULT_UCAPAN_DONATUR).strip()
-        if teks_don:
-            ucapan_html = f"<p class='lpj-p-indent'>{teks_don}</p>"
+        rangkaian_raw = (payload.get("rangkaian_kegiatan") or "").strip()
+        rangkaian_items = [ln.strip() for ln in rangkaian_raw.split(NL) if ln.strip()]
+        ol_html = ""
+        for item_r in rangkaian_items:
+            clean_r = item_r
+            if "." in clean_r[:4]:
+                l_num, r_rest = clean_r.split(".", 1)
+                if l_num.strip().isdigit():
+                    clean_r = r_rest.strip()
+            ol_html += f"<li style='margin-bottom:3px;'>{clean_r}</li>"
 
-    nama_keg = (payload.get("nama_kegiatan") or "Kegiatan Dharma Wanita Persatuan").strip()
-    penutup_html = (
-        f"<p class='lpj-p-indent'>Demikian laporan pertanggung jawaban {nama_keg} ini kami sampaikan, "
-        "atas perhatian dan bantuan yang telah diberikan kami ucapkan terima kasih.</p>"
-    )
+        df_items = normalize_items_df(payload.get("items_dana", []), payload.get("ket_tabel_dana", ""))
+        n_items = len(df_items)
+        merge_ket = bool(payload.get("merge_ket_vertikal", True))
+        ket_global = (payload.get("ket_tabel_dana") or "Kas DWP BC Malang & Donatur Anggota").strip()
+        total_dana = int(df_items["HARGA TOTAL"].sum()) if not df_items.empty else 0
 
-    catatan_ig = (payload.get("catatan_ig") or "").strip()
-    ig_html = ""
-    if catatan_ig:
-        ig_formatted = catatan_ig.replace("@dwpbcmalang", "<b>@dwpbcmalang</b>")
-        ig_html = f"<p style='margin:10px 0 12px 24px;font-size:12.5px;font-style:italic;'>{ig_formatted}</p>"
+        rows_html = ""
+        for idx_df, r in df_items.iterrows():
+            no_str = str(int(r["NO"]))
+            keb_str = str(r["KEBUTUHAN KEGIATAN"])
+            jml_str = str(int(r["JUMLAH"])) if int(r["JUMLAH"]) > 0 else "-"
+            hsat_str = fmt_rp_cell(r["HARGA SATUAN"], is_dash_if_zero=True)
+            htot_str = fmt_rp_cell(r["HARGA TOTAL"], is_dash_if_zero=True)
+            ket_item = str(r.get("KETERANGAN", ket_global) or ket_global)
 
-    jab_1 = (payload.get("jabatan_baris_1") or "Ketua Dharma Wanita Persatuan").strip()
-    jab_2 = (payload.get("jabatan_baris_2") or "KPPBC Tipe Madya Cukai Malang").strip()
-    nama_ttd = (payload.get("nama_penandatangan") or "Ny. Rini Johan Pandores").strip()
+            if merge_ket:
+                if idx_df == 0:
+                    ket_td = f"<td rowspan='{n_items}' style='text-align:center;vertical-align:middle;padding:6px;'>{ket_global}</td>"
+                else:
+                    ket_td = ""
+            else:
+                ket_td = f"<td style='text-align:center;vertical-align:middle;padding:4px 6px;'>{ket_item}</td>"
 
-    if payload.get("tampilkan_ttd", True) and sig_b64:
-        sig_img_html = f"<img src='data:image/jpeg;base64,{sig_b64}' style='height:58px;margin:4px 0;display:block;'/>"
-    else:
-        sig_img_html = "<div style='height:54px;'></div>"
+            rows_html += (
+                "<tr>"
+                f"<td style='text-align:center;'>{no_str}</td>"
+                f"<td style='text-align:left;'>{keb_str}</td>"
+                f"<td style='text-align:center;'>{jml_str}</td>"
+                f"<td style='text-align:right;white-space:nowrap;'>{hsat_str}</td>"
+                f"<td style='text-align:right;white-space:nowrap;'>{htot_str}</td>"
+                f"{ket_td}"
+                "</tr>"
+            )
 
-    html_doc = f"""
+        ucapan_html = ""
+        if payload.get("tampilkan_ucapan_donatur", True):
+            teks_don = (payload.get("teks_ucapan_donatur") or DEFAULT_UCAPAN_DONATUR).strip()
+            if teks_don:
+                ucapan_html = f"<p class='lpj-p-indent'>{teks_don}</p>"
+
+        nama_keg = (payload.get("nama_kegiatan") or "Kegiatan Dharma Wanita Persatuan").strip()
+        penutup_html = (
+            f"<p class='lpj-p-indent'>Demikian laporan pertanggung jawaban {nama_keg} ini kami sampaikan, "
+            "atas perhatian dan bantuan yang telah diberikan kami ucapkan terima kasih.</p>"
+        )
+
+        catatan_ig = (payload.get("catatan_ig") or "").strip()
+        ig_html = ""
+        if catatan_ig:
+            ig_formatted = catatan_ig.replace("@dwpbcmalang", "<b>@dwpbcmalang</b>")
+            ig_html = f"<p style='margin:10px 0 12px 24px;font-size:12.5px;font-style:italic;'>{ig_formatted}</p>"
+
+        jab_1 = (payload.get("jabatan_baris_1") or "Ketua Dharma Wanita Persatuan").strip()
+        jab_2 = (payload.get("jabatan_baris_2") or "KPPBC Tipe Madya Cukai Malang").strip()
+        nama_ttd = (payload.get("nama_penandatangan") or "Ny. Rini Johan Pandores").strip()
+
+        if payload.get("tampilkan_ttd", True) and sig_b64:
+            sig_img_html = f"<img src='data:image/jpeg;base64,{sig_b64}' style='height:58px;margin:4px 0;display:block;'/>"
+        else:
+            sig_img_html = "<div style='height:54px;'></div>"
+
+        body_content = f"""
+            <div style="text-align:right;margin:8px 28px 14px 24px;">{tgl_laporan_indo}</div>
+            <div style="margin:6px 24px 10px 24px;font-style:italic;">Assalamu’alaikum Wr. Wb.</div>
+            <p class="lpj-p-indent">{teks_pembuka}</p>
+            <table class="info-table">
+                <tr><td style="width:110px;">Hari, Tanggal</td><td>: {tgl_acara_indo}</td></tr>
+                <tr><td>Waktu</td><td>: {waktu_acara}</td></tr>
+                <tr><td>Tempat</td><td>: {tempat_acara}</td></tr>
+            </table>
+            <div style="margin:8px 24px 4px 64px;">Dengan rangkaian kegiatan sebagai berikut :</div>
+            <ol style="margin:2px 28px 10px 82px;padding-left:14px;">{ol_html}</ol>
+            <p class="lpj-p-indent">
+                Dana untuk kegiatan ini berasal dari {payload.get("sumber_dana", "")}. Dengan rincian dana sebagai berikut :
+            </p>
+            <table class="dana-table">
+                <thead>
+                    <tr>
+                        <th rowspan="2" style="width:6%;">NO</th>
+                        <th rowspan="2" style="width:31%;">KEBUTUHAN KEGIATAN</th>
+                        <th rowspan="2" style="width:9%;">JUMLAH</th>
+                        <th colspan="2" style="width:32%;">DANA</th>
+                        <th rowspan="2" style="width:22%;">KETERANGAN</th>
+                    </tr>
+                    <tr>
+                        <th style="width:16%;">HARGA SATUAN</th>
+                        <th style="width:16%;">HARGA TOTAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                    <tr>
+                        <td colspan="4" style="text-align:center;font-weight:700;background:#F8FAFC;">TOTAL</td>
+                        <td style="text-align:right;font-weight:700;white-space:nowrap;background:#F8FAFC;">{fmt_rp_cell(total_dana, is_dash_if_zero=False)}</td>
+                        <td style="background:#F8FAFC;"></td>
+                    </tr>
+                </tbody>
+            </table>
+            {ucapan_html}
+            {penutup_html}
+            <div style="margin:8px 24px 6px 24px;font-style:italic;">Wassalamu'alaikum Wr. Wb.</div>
+            {ig_html}
+            <div style="margin-left:58%;margin-top:14px;line-height:1.35;">
+                <div>{jab_1}</div>
+                <div>{jab_2}</div>
+                {sig_img_html}
+                <div style="font-weight:600;">{nama_ttd}</div>
+            </div>
+        """
+
+    return f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -1528,7 +1982,7 @@ def build_a4_live_preview_html(payload: dict, custom_sig_bytes: bytes = None) ->
             box-shadow: 0 2px 6px rgba(15,23,42,0.06);
         }}
         .btn-print {{
-            background: linear-gradient(135deg, #7C2D12, #9A3412, #B45309);
+            background: linear-gradient(135deg, #2B98F0, #1D7FE0);
             color: #FFFFFF !important;
             border: none;
             padding: 9px 16px;
@@ -1599,105 +2053,25 @@ def build_a4_live_preview_html(payload: dict, custom_sig_bytes: bytes = None) ->
     </head>
     <body>
         <div class="toolbar-print">
-            <div style="font-size:13px;font-weight:600;color:#334155;">
-                📄 Pratinjau Kertas Surat Resmi LPJ DWP KPPBC TMC Malang (100% Sesuai Template)
+            <div style="font-size:13px;font-weight:700;color:#1E293B;">
+                📄 Pratinjau Kertas A4 Resmi — Mode Dokumen: {doc_mode} DWP KPPBC TMC Malang
             </div>
             <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF via Browser</button>
         </div>
         <div class="a4-sheet">
-            <table class="kop-table">
-                <tr>
-                    <td style="width:78px;text-align:center;">
-                        <img src="data:image/jpeg;base64,{logo1_b64}" style="width:68px;height:auto;"/>
-                    </td>
-                    <td style="text-align:center;">
-                        <div style="font-family:'Times New Roman',serif;font-size:20px;font-weight:700;font-style:italic;letter-spacing:0.2px;">
-                            Dharma Wanita Persatuan
-                        </div>
-                        <div style="font-size:11px;font-weight:700;line-height:1.25;margin-top:2px;">
-                            DIREKTORAT JENDERAL BEA DAN CUKAI KANTOR WILAYAH DJBC JAWA TIMUR II<br/>
-                            KANTOR PENGAWASAN DAN PELAYANAN BEA DAN CUKAI TIPE MADYA CUKAI MALANG
-                        </div>
-                        <div style="font-size:8.5px;margin-top:3px;line-height:1.25;">
-                            JALAN SURABAYA NOMOR 2, MALANG 65145<br/>
-                            TELEPON (0341) 551628; FAKSIMILE (0341)554193; LAMAN <span style="color:#1D4ED8;text-decoration:underline;">WWW.BEACUKAIMALANG.COM</span><br/>
-                            PUSAT KONTAK LAYANAN 1500225; SUREL <span style="color:#1D4ED8;text-decoration:underline;">INFO@CUSTOMS.GO.ID</span>
-                        </div>
-                    </td>
-                    <td style="width:88px;text-align:center;">
-                        <img src="data:image/png;base64,{logo2_b64}" style="width:78px;height:auto;"/>
-                    </td>
-                </tr>
-            </table>
-
-            <div style="text-align:right;margin:8px 28px 14px 24px;">{tgl_laporan_indo}</div>
-            <div style="margin:6px 24px 10px 24px;font-style:italic;">Assalamu’alaikum Wr. Wb.</div>
-
-            <p class="lpj-p-indent">{teks_pembuka}</p>
-
-            <table class="info-table">
-                <tr><td style="width:110px;">Hari, Tanggal</td><td>: {tgl_acara_indo}</td></tr>
-                <tr><td>Waktu</td><td>: {waktu_acara}</td></tr>
-                <tr><td>Tempat</td><td>: {tempat_acara}</td></tr>
-            </table>
-
-            <div style="margin:8px 24px 4px 64px;">Dengan rangkaian kegiatan sebagai berikut :</div>
-            <ol style="margin:2px 28px 10px 82px;padding-left:14px;">
-                {ol_html}
-            </ol>
-
-            <p class="lpj-p-indent">
-                Dana untuk kegiatan ini berasal dari {payload.get("sumber_dana", "")}. Dengan rincian dana sebagai berikut :
-            </p>
-
-            <table class="dana-table">
-                <thead>
-                    <tr>
-                        <th rowspan="2" style="width:6%;">NO</th>
-                        <th rowspan="2" style="width:31%;">KEBUTUHAN KEGIATAN</th>
-                        <th rowspan="2" style="width:9%;">JUMLAH</th>
-                        <th colspan="2" style="width:32%;">DANA</th>
-                        <th rowspan="2" style="width:22%;">KETERANGAN</th>
-                    </tr>
-                    <tr>
-                        <th style="width:16%;">HARGA SATUAN</th>
-                        <th style="width:16%;">HARGA TOTAL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows_html}
-                    <tr>
-                        <td colspan="4" style="text-align:center;font-weight:700;background:#F8FAFC;">TOTAL</td>
-                        <td style="text-align:right;font-weight:700;white-space:nowrap;background:#F8FAFC;">{fmt_rp_cell(total_dana, is_dash_if_zero=False)}</td>
-                        <td style="background:#F8FAFC;"></td>
-                    </tr>
-                </tbody>
-            </table>
-
-            {ucapan_html}
-            {penutup_html}
-
-            <div style="margin:8px 24px 6px 24px;font-style:italic;">Wassalamu'alaikum Wr. Wb.</div>
-            {ig_html}
-
-            <div style="margin-left:58%;margin-top:14px;line-height:1.35;">
-                <div>{jab_1}</div>
-                <div>{jab_2}</div>
-                {sig_img_html}
-                <div style="font-weight:600;">{nama_ttd}</div>
-            </div>
+            {kop_html}
+            {body_content}
         </div>
     </body>
     </html>
     """
-    return html_doc
 
 
 # ==============================================================================
-# BAGIAN 6: ARSITEKTUR UI/UX (DWP ELEGANCE + MOBILE-FIRST + ANTI DARK-MODE)
+# BAGIAN 6: SPESIFIKASI CSS "FILY" MODERN ADMIN UI (ANTI DARK-MODE & MOBILE-FIRST)
 # ==============================================================================
 
-def inject_dwp_elegance_css():
+def inject_fily_admin_css():
     st.markdown(
         """
         <style>
@@ -1705,37 +2079,96 @@ def inject_dwp_elegance_css():
             color-scheme: light !important;
         }
         html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
-            background-color: #FDFBF7 !important;
+            background-color: #F1F5F9 !important;
             color: #0F172A !important;
             font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
         }
         [data-testid="stHeader"] {
-            background-color: rgba(253, 251, 247, 0.92) !important;
+            background-color: rgba(241, 245, 249, 0.90) !important;
         }
-        [data-testid="stSidebar"] {
-            background-color: #FFF8F1 !important;
-            border-right: 1px solid #FED7AA !important;
+        .block-container {
+            padding-top: 1.4rem !important;
+            padding-bottom: 2.5rem !important;
+            max-width: 1420px !important;
         }
-        /* Paksa seluruh teks, label, markdown, metrik berwarna gelap pekat #0F172A */
-        p, span, label, h1, h2, h3, h4, h5, h6, li, td, th,
-        [data-testid="stWidgetLabel"] p,
-        [data-testid="stMarkdownContainer"] p,
-        [data-testid="stMetricValue"],
-        [data-testid="stMetricLabel"] {
+        /* Dark Slate Navy Sidebar (#1E2235) */
+        [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {
+            background-color: #1E2235 !important;
+            border-right: 1px solid #2D334D !important;
+        }
+        [data-testid="stSidebar"] h1,
+        [data-testid="stSidebar"] h2,
+        [data-testid="stSidebar"] h3,
+        [data-testid="stSidebar"] h4,
+        [data-testid="stSidebar"] p,
+        [data-testid="stSidebar"] span,
+        [data-testid="stSidebar"] label,
+        [data-testid="stSidebar"] caption {
+            color: #F8FAFC !important;
+            -webkit-text-fill-color: #F8FAFC !important;
+        }
+        /* Navigasi Radio di Sidebar tampil seperti Menu Web Modern */
+        [data-testid="stSidebar"] div[role="radiogroup"] > label {
+            background-color: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-left: 4px solid transparent !important;
+            border-radius: 10px !important;
+            padding: 10px 14px !important;
+            margin-bottom: 6px !important;
+            min-height: 46px !important;
+            transition: all 0.18s ease !important;
+            cursor: pointer !important;
+        }
+        [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
+            background-color: #282E47 !important;
+            border-left: 4px solid #2B98F0 !important;
+        }
+        [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"],
+        [data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) {
+            background: linear-gradient(90deg, rgba(43,152,240,0.25) 0%, rgba(40,46,71,0.95) 100%) !important;
+            border: 1px solid rgba(43, 152, 240, 0.45) !important;
+            border-left: 4px solid #00D09C !important;
+            font-weight: 700 !important;
+        }
+        /* Input di dalam Expander Sidebar tetap berlatar Putih & Teks Gelap */
+        [data-testid="stSidebar"] input,
+        [data-testid="stSidebar"] textarea,
+        [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] {
+            background-color: #FFFFFF !important;
             color: #0F172A !important;
             -webkit-text-fill-color: #0F172A !important;
         }
-        /* Ergonomi Mobile-First (Anti Auto-Zoom di HP: font-size 16px & min-height 48px) */
-        input, textarea, select,
-        div[data-baseweb="input"] input,
-        div[data-baseweb="textarea"] textarea,
-        div[data-baseweb="select"] > div {
+        [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] * {
+            color: #0F172A !important;
+            -webkit-text-fill-color: #0F172A !important;
+        }
+        /* Area Utama: Paksa semua teks gelap pekat #0F172A */
+        [data-testid="stMain"] p,
+        [data-testid="stMain"] span,
+        [data-testid="stMain"] label,
+        [data-testid="stMain"] h1,
+        [data-testid="stMain"] h2,
+        [data-testid="stMain"] h3,
+        [data-testid="stMain"] h4,
+        [data-testid="stMain"] li,
+        [data-testid="stMain"] td,
+        [data-testid="stMain"] th {
+            color: #0F172A !important;
+            -webkit-text-fill-color: #0F172A !important;
+        }
+        /* Input Ergonomis Mobile-First (Anti Auto-Zoom HP: 16px, min-height 46px) */
+        [data-testid="stMain"] input,
+        [data-testid="stMain"] textarea,
+        [data-testid="stMain"] select,
+        [data-testid="stMain"] div[data-baseweb="input"] input,
+        [data-testid="stMain"] div[data-baseweb="textarea"] textarea,
+        [data-testid="stMain"] div[data-baseweb="select"] > div {
             background-color: #FFFFFF !important;
             color: #0F172A !important;
             -webkit-text-fill-color: #0F172A !important;
             font-size: 16px !important;
-            min-height: 48px !important;
-            border-radius: 10px !important;
+            min-height: 46px !important;
+            border-radius: 8px !important;
             border: 1.5px solid #CBD5E1 !important;
         }
         div[data-baseweb="popover"], ul[data-baseweb="menu"], li[role="option"] {
@@ -1744,77 +2177,102 @@ def inject_dwp_elegance_css():
             -webkit-text-fill-color: #0F172A !important;
             font-size: 16px !important;
         }
-        /* Tombol aksi utama minimal tinggi 52px dengan gradasi DWP Terracotta ke Deep Burgundy */
-        .stButton > button {
-            min-height: 52px !important;
-            border-radius: 12px !important;
-            font-size: 15.5px !important;
+        /* Tombol Utama Modern */
+        [data-testid="stMain"] .stButton > button {
+            min-height: 46px !important;
+            border-radius: 10px !important;
+            font-size: 14.5px !important;
             font-weight: 700 !important;
-            background: linear-gradient(135deg, #7C2D12 0%, #9A3412 55%, #B45309 100%) !important;
+            background: linear-gradient(135deg, #2B98F0 0%, #1D7FE0 100%) !important;
             color: #FFFFFF !important;
             -webkit-text-fill-color: #FFFFFF !important;
-            border: 1px solid #F59E0B !important;
-            box-shadow: 0 4px 12px rgba(124, 45, 18, 0.18) !important;
-            transition: all 0.2s ease-in-out !important;
+            border: none !important;
+            box-shadow: 0 4px 12px rgba(43, 152, 240, 0.22) !important;
+            transition: all 0.18s ease !important;
         }
-        .stButton > button p, .stButton > button span {
+        [data-testid="stMain"] .stButton > button p,
+        [data-testid="stMain"] .stButton > button span {
             color: #FFFFFF !important;
             -webkit-text-fill-color: #FFFFFF !important;
         }
-        .stButton > button:hover {
+        [data-testid="stMain"] .stButton > button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(124, 45, 18, 0.28) !important;
+            box-shadow: 0 6px 16px rgba(43, 152, 240, 0.32) !important;
         }
-        /* Styling Tabs */
-        button[data-baseweb="tab"] {
-            min-height: 50px !important;
-            font-size: 15.5px !important;
+        [data-testid="stSidebar"] .stButton > button {
+            min-height: 42px !important;
+            border-radius: 9px !important;
+            font-size: 13.5px !important;
             font-weight: 700 !important;
-            padding: 10px 20px !important;
-            border-radius: 10px 10px 0 0 !important;
-            background-color: #FFFFFF !important;
-            margin-right: 6px !important;
-            border: 1px solid #E2E8F0 !important;
-        }
-        button[data-baseweb="tab"][aria-selected="true"] {
-            background: linear-gradient(135deg, #7C2D12 0%, #9A3412 100%) !important;
+            background: linear-gradient(135deg, #2B98F0 0%, #1D7FE0 100%) !important;
             color: #FFFFFF !important;
             -webkit-text-fill-color: #FFFFFF !important;
-            border-bottom: 3px solid #F59E0B !important;
+            border: 1px solid rgba(255,255,255,0.18) !important;
         }
-        button[data-baseweb="tab"][aria-selected="true"] p {
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-        }
-        /* Kartu putih bersih */
-        .dwp-card {
+        /* Top Welcome Bar & 4 Pill KPI Cards ("Fily" Style) */
+        .fily-topbar {
             background: #FFFFFF !important;
+            padding: 14px 22px;
+            border-radius: 12px;
             border: 1px solid #E2E8F0;
-            border-left: 5px solid #9A3412;
-            border-radius: 14px;
-            padding: 18px 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
-        }
-        .dwp-hero {
-            background: linear-gradient(135deg, #7C2D12 0%, #9A3412 52%, #B45309 100%);
-            border-radius: 16px;
-            padding: 22px 26px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
             margin-bottom: 18px;
-            border: 1.5px solid #F59E0B;
-            box-shadow: 0 8px 24px rgba(124, 45, 18, 0.20);
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
         }
-        .dwp-hero h1, .dwp-hero p, .dwp-hero span {
+        .fily-pill {
+            border-radius: 999px;
+            padding: 15px 22px;
+            color: #FFFFFF !important;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.10);
+            margin-bottom: 16px;
+        }
+        .fily-pill * {
             color: #FFFFFF !important;
             -webkit-text-fill-color: #FFFFFF !important;
         }
-        .metric-box {
-            background: #FFFFFF;
-            border: 1.5px solid #FED7AA;
+        .fily-pill-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.22);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        .pill-emerald { background: linear-gradient(135deg, #00D09C 0%, #00B386 100%); }
+        .pill-blue    { background: linear-gradient(135deg, #2B98F0 0%, #1D7FE0 100%); }
+        .pill-rose    { background: linear-gradient(135deg, #F85370 0%, #E63956 100%); }
+        .pill-amber   { background: linear-gradient(135deg, #FBA01D 0%, #F58800 100%); }
+
+        .fily-card {
+            background: #FFFFFF !important;
             border-radius: 12px;
-            padding: 14px 16px;
-            text-align: center;
-            box-shadow: 0 2px 8px rgba(124, 45, 18, 0.06);
+            border: 1px solid #E2E8F0;
+            padding: 20px 22px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+        }
+        .fily-section-hdr {
+            background: #FFFFFF !important;
+            border-left: 5px solid #2B98F0;
+            border-radius: 10px;
+            padding: 12px 18px;
+            margin-bottom: 16px;
+            border-top: 1px solid #E2E8F0;
+            border-right: 1px solid #E2E8F0;
+            border-bottom: 1px solid #E2E8F0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         </style>
         """,
@@ -1823,12 +2281,27 @@ def inject_dwp_elegance_css():
 
 
 # ==============================================================================
-# BAGIAN 7: INISIALISASI STATE & PRESET LOADER
+# BAGIAN 7: MANAJEMEN STATE, PRESET LOADER & 1-CLICK RAB-TO-LPJ CONVERTER
 # ==============================================================================
 
-def load_payload_into_state(data: dict):
-    """Memuat seluruh field LPJ ke st.session_state agar langsung tampil di semua Tab."""
+def load_rab_into_state(data: dict):
+    """Memuat seluruh field RAB ke st.session_state."""
+    st.session_state["id_rab"] = data.get("id_rab", "RAB-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    st.session_state["baris_1_judul"] = data.get("baris_1_judul", "RANCANGAN ANGGARAN BIAYA")
+    st.session_state["nama_kegiatan_rab"] = data.get("nama_kegiatan_rab", "")
+    st.session_state["lokasi_acara_rab"] = data.get("lokasi_acara_rab", "")
+    st.session_state["sumber_dana_rab"] = data.get("sumber_dana_rab", "Kas Dharma Wanita KPPBC TMC Malang")
+    st.session_state["ket_tabel_rab"] = data.get("ket_tabel_rab", "")
+    st.session_state["merge_ket_rab"] = bool(data.get("merge_ket_rab", False))
+    st.session_state["catatan_note_rab"] = data.get("catatan_note_rab", "")
+    st.session_state["status_konversi"] = data.get("status_konversi", "BELUM DIKONVERSI")
+    st.session_state["df_items_rab"] = normalize_items_df(data.get("items_rab", []), st.session_state["ket_tabel_rab"])
+
+
+def load_lpj_into_state(data: dict):
+    """Memuat seluruh field LPJ ke st.session_state."""
     st.session_state["id_lpj"] = data.get("id_lpj", "LPJ-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    st.session_state["id_rab_ref"] = data.get("id_rab_ref", "")
 
     tgl_lap = data.get("tgl_laporan", date(2026, 8, 13))
     if isinstance(tgl_lap, str):
@@ -1864,22 +2337,86 @@ def load_payload_into_state(data: dict):
     st.session_state["jabatan_baris_2"] = data.get("jabatan_baris_2", "KPPBC Tipe Madya Cukai Malang")
     st.session_state["nama_penandatangan"] = data.get("nama_penandatangan", "Ny. Rini Johan Pandores")
     st.session_state["tampilkan_ttd"] = bool(data.get("tampilkan_ttd", True))
+    st.session_state["df_items_dana"] = normalize_items_df(data.get("items_dana", []), st.session_state["ket_tabel_dana"])
 
-    df_norm = normalize_items_df(data.get("items_dana", []), st.session_state["ket_tabel_dana"])
-    st.session_state["df_items_dana"] = df_norm
+
+def convert_active_rab_to_lpj(df_rab_current: pd.DataFrame = None):
+    """
+    1-Klik Konversi RAB ke LPJ:
+    Menarik Nama Kegiatan, Lokasi Acara, Sumber Dana, dan seluruh baris anggaran RAB
+    langsung menjadi draf LPJ siap pakai tanpa ketik ulang!
+    """
+    raw_nama_rab = (st.session_state.get("nama_kegiatan_rab") or "").strip()
+    if raw_nama_rab.upper().startswith("PELAKSANAAN "):
+        raw_nama_rab = raw_nama_rab[12:].strip()
+
+    # Ubah kapitalisasi judul RAB menjadi kalimat LPJ yang elegan
+    nama_lpj = raw_nama_rab.title()
+    for acr in ["DWP", "DJBC", "KPPBC", "TMC", "TMP", "HUT", "RI", "II", "III"]:
+        nama_lpj = nama_lpj.replace(acr.title(), acr)
+    nama_lpj = nama_lpj.replace("Di Lingkungan", "di lingkungan")
+
+    lok_rab = (st.session_state.get("lokasi_acara_rab") or "").strip().strip("()")
+    if lok_rab.upper().startswith("DI "):
+        lok_rab = lok_rab[3:].strip()
+    tempat_lpj = lok_rab.title()
+    for acr in ["KPPBC", "TMC", "TMP", "DJBC", "C", "A", "B"]:
+        tempat_lpj = tempat_lpj.replace(f" {acr.title()} ", f" {acr} ").replace(f"{acr.title()} ", f"{acr} ")
+
+    sumber_rab = (st.session_state.get("sumber_dana_rab") or "Kas Dharma Wanita KPPBC TMC Malang").strip()
+    if "donatur" not in sumber_rab.lower():
+        sumber_lpj = sumber_rab + " dan donatur"
+    else:
+        sumber_lpj = sumber_rab
+
+    ket_lpj = st.session_state.get("ket_tabel_dana") or "Kas DWP BC Malang & Donatur Anggota"
+    df_src = df_rab_current if df_rab_current is not None else st.session_state.get("df_items_rab", pd.DataFrame())
+    df_lpj_new = normalize_items_df(df_src, ket_lpj)
+    df_lpj_new["KETERANGAN"] = ket_lpj
+
+    st.session_state["id_lpj"] = "LPJ-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    st.session_state["id_rab_ref"] = st.session_state.get("id_rab", "RAB-AKTIF")
+    st.session_state["nama_kegiatan"] = nama_lpj
+    st.session_state["tempat_acara"] = tempat_lpj
+    st.session_state["sumber_dana"] = sumber_lpj
+    st.session_state["df_items_dana"] = df_lpj_new
+    st.session_state["status_konversi"] = f"SUDAH DIKONVERSI KE {st.session_state['id_lpj']}"
+    st.session_state["preview_doc_mode"] = "LPJ"
 
 
 def init_app_state():
-    if "app_initialized" not in st.session_state:
-        load_payload_into_state(PRESET_BLITAR_2026)
+    if "app_v5_initialized" not in st.session_state:
+        load_rab_into_state(PRESET_RAB_JEMBER)
+        load_lpj_into_state(PRESET_LPJ_BLITAR_2026)
+        st.session_state["local_db_rab"] = []
         st.session_state["local_db_lpj"] = []
         st.session_state["local_rekap_dana"] = []
-        st.session_state["app_initialized"] = True
+        st.session_state["active_menu"] = MENU_DASHBOARD
+        st.session_state["preview_doc_mode"] = "LPJ"
+        st.session_state["app_v5_initialized"] = True
 
 
-def collect_current_payload() -> dict:
+def collect_rab_payload(df_rab_override: pd.DataFrame = None) -> dict:
+    df_use = df_rab_override if df_rab_override is not None else st.session_state.get("df_items_rab", pd.DataFrame())
+    return {
+        "id_rab": st.session_state.get("id_rab", "RAB-2026-JEMBER"),
+        "baris_1_judul": st.session_state.get("baris_1_judul", "RANCANGAN ANGGARAN BIAYA"),
+        "nama_kegiatan_rab": st.session_state.get("nama_kegiatan_rab", ""),
+        "lokasi_acara_rab": st.session_state.get("lokasi_acara_rab", ""),
+        "sumber_dana_rab": st.session_state.get("sumber_dana_rab", ""),
+        "ket_tabel_rab": st.session_state.get("ket_tabel_rab", ""),
+        "merge_ket_rab": st.session_state.get("merge_ket_rab", False),
+        "catatan_note_rab": st.session_state.get("catatan_note_rab", ""),
+        "status_konversi": st.session_state.get("status_konversi", "BELUM DIKONVERSI"),
+        "items_rab": df_use.to_dict(orient="records"),
+    }
+
+
+def collect_lpj_payload(df_lpj_override: pd.DataFrame = None) -> dict:
+    df_use = df_lpj_override if df_lpj_override is not None else st.session_state.get("df_items_dana", pd.DataFrame())
     return {
         "id_lpj": st.session_state.get("id_lpj", "LPJ-20260813-BLITAR"),
+        "id_rab_ref": st.session_state.get("id_rab_ref", ""),
         "tgl_laporan": st.session_state.get("tgl_laporan", date(2026, 8, 13)),
         "nama_kegiatan": st.session_state.get("nama_kegiatan", ""),
         "tema_kegiatan": st.session_state.get("tema_kegiatan", ""),
@@ -1899,288 +2436,522 @@ def collect_current_payload() -> dict:
         "jabatan_baris_2": st.session_state.get("jabatan_baris_2", "KPPBC Tipe Madya Cukai Malang"),
         "nama_penandatangan": st.session_state.get("nama_penandatangan", "Ny. Rini Johan Pandores"),
         "tampilkan_ttd": st.session_state.get("tampilkan_ttd", True),
-        "items_dana": st.session_state.get("df_items_dana", pd.DataFrame()).to_dict(orient="records"),
+        "items_dana": df_use.to_dict(orient="records"),
     }
 
 
+def switch_menu(target_menu: str, preview_mode: str = None):
+    st.session_state[" _nav_target"] = target_menu
+    if preview_mode:
+        st.session_state["preview_doc_mode"] = preview_mode
+    st.rerun()
+
+
 # ==============================================================================
-# BAGIAN 8: MAIN APPLICATION (SIDEBAR + 3 TAB WORKFLOW 3 MENIT SELESAI)
+# BAGIAN 8: MAIN APPLICATION (SINGLE ACTIVE SIDEBAR VIEW — ANTI-LAG)
 # ==============================================================================
 
 def main():
-    inject_dwp_elegance_css()
+    inject_fily_admin_css()
     init_app_state()
 
-    # --- SIDEBAR: KONFIGURASI TEMPLATE & DATABASE GOOGLE SHEETS ---
+    if " _nav_target" in st.session_state:
+        st.session_state["active_menu"] = st.session_state.pop(" _nav_target")
+
+    # --- SIDEBAR: DARK SLATE NAVY ("FILY" ADMIN NAVIGATION) ---
     with st.sidebar:
-        st.markdown("### 🏛️ Panel Kontrol DWP BC Malang")
-        st.caption("Template-Cloning & Smart Financial Engine V3.0")
-
-        tpl_found = find_template_docx_path()
-        if tpl_found:
-            st.success(f"✅ Template Asli Terdeteksi: `{os.path.basename(tpl_found)}`")
-        elif st.session_state.get("uploaded_template_bytes"):
-            st.success("✅ Template Asli Terhubung dari Upload Sidebar")
-        else:
-            st.info("ℹ️ Menggunakan Engine Kop Surat & Tanda Tangan Asli Bawaan (Zero-Loss Embedded)")
-
-        with st.expander("📂 Upload File Template .docx (Opsional)", expanded=False):
-            up_tpl = st.file_uploader("Pilih file `LPJ_DWP GABUNGAN DI BLITAR_2026-1.docx`", type=["docx"], key="up_tpl_sidebar")
-            if up_tpl is not None:
-                st.session_state["uploaded_template_bytes"] = up_tpl.read()
-                st.success("Template berhasil dimuat ke memori!")
-
-        st.markdown("### ☁️ Koneksi Google Sheets")
-        sheet_id_in = st.text_input("ID Spreadsheet Google Sheets", value=DEFAULT_SPREADSHEET_ID)
-
-        up_sa = st.file_uploader("Upload JSON Service Account (Opsional)", type=["json"], key="up_sa_json")
-        creds_str = ""
-        if up_sa is not None:
-            creds_str = up_sa.getvalue().decode("utf-8", errors="ignore")
-            st.session_state["creds_json_str"] = creds_str
-        else:
-            creds_str = st.session_state.get("creds_json_str", "")
-
-        bundle = get_sheet_bundle(sheet_id_in, creds_str)
-        if bundle.get("ok"):
-            st.success("🟢 " + bundle.get("msg", "Terhubung"))
-        else:
-            st.warning("🟡 " + bundle.get("msg", "Mode Offline Lokal Aktif"))
-
-        if st.button("🔄 Segarkan Data Google Sheets", use_container_width=True):
-            fetch_sheet_bundle_cached.clear()
-            st.rerun()
-
-    # --- HERO HEADER ---
-    st.markdown(
-        """
-        <div class="dwp-hero">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        st.markdown(
+            """
+            <div style="display:flex;align-items:center;gap:12px;padding:6px 4px 16px 4px;border-bottom:1px solid #2D334D;margin-bottom:14px;">
+                <div style="width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#2B98F0,#00D09C);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 12px rgba(43,152,240,0.3);">
+                    🏛️
+                </div>
                 <div>
-                    <span style="background:rgba(245,158,11,0.28);border:1px solid #FCD34D;padding:4px 12px;border-radius:999px;font-size:12.5px;font-weight:700;">
-                        ✨ DWP KPPBC TIPE MADYA CUKAI MALANG — V3.0 PRODUCTION
-                    </span>
-                    <h1 style="margin:8px 0 4px 0;font-size:26px;font-weight:800;">
-                        Smart Generator LPJ Kegiatan Dharma Wanita Persatuan
-                    </h1>
-                    <p style="margin:0;font-size:14.5px;opacity:0.95;">
-                        Zero-Loss Template Cloning • Smart Financial 3-Mode Engine • Anti-Potong PDF • Integrasi Google Sheets
-                    </p>
+                    <div style="font-weight:800;font-size:16px;letter-spacing:0.4px;color:#FFFFFF;">DWP BC MALANG</div>
+                    <div style="font-size:11.5px;color:#94A3B8;">Enterprise RAB & LPJ Suite V5.0</div>
                 </div>
             </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
 
-    # --- 3 TAB UTAMA ("WORKFLOW 3 MENIT SELESAI") ---
-    tab1, tab2, tab3 = st.tabs([
-        "📝 TAB 1: Identitas & Rangkaian Kegiatan",
-        "💰 TAB 2: Tabel Rincian Dana Pintar",
-        "📥 TAB 3: Preview Persis Asli, Simpan & Download",
-    ])
+        st.caption("MENU NAVIGASI UTAMA")
+        active_menu = st.radio(
+            "Navigasi Utama",
+            options=ALL_MENUS,
+            key="active_menu",
+            label_visibility="collapsed",
+        )
 
-    # ==========================================================================
-    # TAB 1: IDENTITAS & RANGKAIAN KEGIATAN
-    # ==========================================================================
-    with tab1:
-        st.markdown('<div class="dwp-card">', unsafe_allow_html=True)
-        col_preset, col_hist = st.columns([1.15, 1.35])
+        st.markdown('<div style="border-top:1px solid #2D334D;margin:14px 0 10px 0;"></div>', unsafe_allow_html=True)
+        st.caption("PINTASAN PRESET RESMI 1-KLIK")
 
-        with col_preset:
-            st.markdown("#### ⚡ Preset Dokumen Resmi 1-Klik")
-            if st.button("📋 Muat Contoh Persis LPJ DWP Gabungan di Blitar (2026)", use_container_width=True):
-                load_payload_into_state(PRESET_BLITAR_2026)
-                st.toast("Seluruh data LPJ DWP Gabungan di Blitar (2026) berhasil dimuat!", icon="✅")
+        if st.button("📋 Muat Preset RAB Jember", use_container_width=True):
+            load_rab_into_state(PRESET_RAB_JEMBER)
+            st.toast("Preset RAB DWP Gabungan di Jember berhasil dimuat!", icon="📋")
+            switch_menu(MENU_RAB)
+
+        if st.button("📝 Muat Preset LPJ Blitar 2026", use_container_width=True):
+            load_lpj_into_state(PRESET_LPJ_BLITAR_2026)
+            st.toast("Preset LPJ DWP Gabungan di Blitar (2026) berhasil dimuat!", icon="📝")
+            switch_menu(MENU_LPJ)
+
+        st.markdown('<div style="border-top:1px solid #2D334D;margin:14px 0 10px 0;"></div>', unsafe_allow_html=True)
+        with st.expander("⚙️ KONFIGURASI SISTEM & CLOUD", expanded=False):
+            sheet_id_in = st.text_input("ID Google Sheets", value=DEFAULT_SPREADSHEET_ID, key="cfg_sheet_id")
+            up_sa = st.file_uploader("Upload JSON Key Cloud", type=["json"], key="up_sa_json")
+            if up_sa is not None:
+                st.session_state["creds_json_str"] = up_sa.getvalue().decode("utf-8", errors="ignore")
+            creds_str = st.session_state.get("creds_json_str", "")
+
+            up_tpl = st.file_uploader("Upload Template .docx (Opsional)", type=["docx"], key="up_tpl_sidebar")
+            if up_tpl is not None:
+                st.session_state["uploaded_template_bytes"] = up_tpl.read()
+                st.success("Template .docx aktif!")
+
+            if st.button("🔄 Sinkronkan Cloud", use_container_width=True):
+                fetch_sheet_bundle_cached.clear()
                 st.rerun()
 
-        with col_hist:
-            st.markdown("#### 🗂️ Muat dari Riwayat Database (GSheet / Lokal)")
-            db_rows = bundle.get("db_rows", [])
-            if db_rows:
-                options_map = {}
-                for r in db_rows:
-                    lbl = f"{r.get('ID_LPJ', '')} | {r.get('TGL_ACARA', '')} — {str(r.get('NAMA_KEGIATAN', ''))[:45]}"
-                    options_map[lbl] = r
-                selected_lbl = st.selectbox("Pilih Riwayat LPJ untuk Diedit / Diduplikasi", options=["-- Pilih Riwayat LPJ --"] + list(options_map.keys()))
-                if selected_lbl != "-- Pilih Riwayat LPJ --":
-                    if st.button("📂 Buka & Muat Riwayat Terpilih", use_container_width=True):
-                        row_sel = options_map[selected_lbl]
-                        raw_json = row_sel.get("PAYLOAD_JSON", "")
-                        if raw_json:
-                            try:
-                                parsed_payload = json.loads(raw_json)
-                                load_payload_into_state(parsed_payload)
-                                st.toast("Riwayat LPJ berhasil dimuat ke dalam form!", icon="📂")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Gagal membaca payload riwayat: {e}")
-            else:
-                st.info("Belum ada riwayat LPJ tersimpan di sesi ini. Klik Simpan di Tab 3 untuk mulai merekam riwayat.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        sheet_id_active = st.session_state.get("cfg_sheet_id", DEFAULT_SPREADSHEET_ID)
+        creds_active = st.session_state.get("creds_json_str", "")
+        bundle = get_sheet_bundle(sheet_id_active, creds_active)
 
-        # Form Identitas & Rangkaian Kegiatan
-        st.markdown('<div class="dwp-card">', unsafe_allow_html=True)
-        st.markdown("#### 📌 Identitas Surat & Pelaksanaan Kegiatan")
+        status_dot = "🟢 Cloud Terhubung" if bundle.get("ok") else "🟡 Mode Lokal Aktif"
+        st.caption(f"Status: **{status_dot}**")
 
-        c1, c2 = st.columns([1, 2])
-        with c1:
-            st.date_input("Tanggal Surat LPJ (Kanan Atas)", key="tgl_laporan")
-            st.caption(f"Format Cetak: **{format_hari_tanggal_indo(st.session_state.get('tgl_laporan', date.today()))}**")
-        with c2:
-            st.text_input(
-                "Nama Kegiatan Utama",
-                key="nama_kegiatan",
-                placeholder="Contoh: Pertemuan Rutin Paguyuban Dharma Wanita Persatuan DJBC...",
-            )
+    # Hitung Metrik Utama Secara Ringan (Tanpa Memanggil LibreOffice di Luar Halaman Preview)
+    df_rab_now = normalize_items_df(st.session_state.get("df_items_rab", pd.DataFrame()), st.session_state.get("ket_tabel_rab", ""))
+    df_lpj_now = normalize_items_df(st.session_state.get("df_items_dana", pd.DataFrame()), st.session_state.get("ket_tabel_dana", ""))
 
-        c3, c4 = st.columns(2)
-        with c3:
-            st.text_input(
-                "Tema Kegiatan (Opsional — kosongkan jika tanpa tema)",
-                key="tema_kegiatan",
-                placeholder="Contoh: Kebersamaan dalam Keceriaan, Bersinergi dalam Kebahagiaan",
-            )
-        with c4:
-            st.text_input(
-                "Konteks Tambahan / HUT (Opsional)",
-                key="konteks_hut",
-                placeholder="Contoh: menyambut HUT ke-81 Kemerdekaan Republik Indonesia",
-            )
+    tot_rab_val = int(df_rab_now["HARGA TOTAL"].sum()) if not df_rab_now.empty else 0
+    tot_lpj_val = int(df_lpj_now["HARGA TOTAL"].sum()) if not df_lpj_now.empty else 0
+    selisih_val = tot_lpj_val - tot_rab_val
+    arsip_count = len(bundle.get("rab_rows", [])) + len(bundle.get("lpj_rows", []))
 
-        c5, c6, c7 = st.columns([1, 1, 1.2])
-        with c5:
-            st.date_input("Pilih Tanggal Kegiatan", key="tgl_acara")
-            st.text_input(
-                "Atau Ketik Hari/Tanggal Manual (Jika Multi-Hari)",
-                key="tgl_acara_manual",
-                placeholder="Kosongkan jika memakai pemilih tanggal di atas",
-            )
-        with c6:
-            st.text_input("Waktu Kegiatan", key="waktu_acara", placeholder="08.30 - selesai")
-        with c7:
-            st.text_input("Tempat Kegiatan", key="tempat_acara", placeholder="KPPBC Tipe Madya Pabean C Blitar")
-
-        st.markdown("#### 📋 Rangkaian Kegiatan (1 Baris = 1 Nomor Urut Otomatis)")
-        st.text_area(
-            "Ketik atau tempel rangkaian acara (setiap baris baru otomatis menjadi nomor 1, 2, 3 dst. di dokumen Word & PDF)",
-            key="rangkaian_kegiatan",
-            height=135,
+    # --- TOP WELCOME BAR ---
+    tb_col1, tb_col2 = st.columns([2.6, 1.1])
+    with tb_col1:
+        st.markdown(
+            f"""
+            <div class="fily-topbar">
+                <div>
+                    <div style="font-size:18px;font-weight:800;color:#0F172A;">
+                        👋 Hi, Selamat Datang Pengurus DWP KPPBC TMC Malang!
+                    </div>
+                    <div style="font-size:13px;color:#475569;margin-top:2px;">
+                        Alur Terpadu: <b>1. Susun RAB</b> → <b>2. Konversi 1-Klik ke LPJ</b> → <b>3. Cetak Word & PDF Presisi 100%</b>
+                    </div>
+                </div>
+                <div style="font-size:12.5px;font-weight:700;background:#EFF6FF;color:#1D4ED8;padding:6px 12px;border-radius:8px;border:1px solid #BFDBFE;">
+                    {status_dot}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-
-        # Pratinjau Kalimat Pembuka Adaptif
-        preview_pembuka = build_paragraf_pembuka(
-            st.session_state.get("nama_kegiatan", ""),
-            st.session_state.get("tema_kegiatan", ""),
-            st.session_state.get("konteks_hut", ""),
-        )
-        st.info(f"**Pratinjau Paragraf Pembuka Otomatis:**{NL}{preview_pembuka}")
-        st.markdown("</div>", unsafe_allow_html=True)
+    with tb_col2:
+        if st.button("🚀 Konversi RAB Aktif → LPJ (1-Klik)", use_container_width=True):
+            convert_active_rab_to_lpj(df_rab_now)
+            st.toast("Seluruh data RAB berhasil dikonversi menjadi draf LPJ!", icon="🚀")
+            switch_menu(MENU_LPJ)
 
     # ==========================================================================
-    # TAB 2: TABEL RINCIAN DANA PINTAR (SMART FINANCIAL ENGINE)
+    # VIEW 0: 🏠 DASHBOARD UTAMA ("FILY" 4 PILL KPI CARDS & TABEL KOMPARASI)
     # ==========================================================================
-    with tab2:
-        st.markdown('<div class="dwp-card">', unsafe_allow_html=True)
-        st.markdown("#### 🏦 Sumber Dana & Pengaturan Kolom Keterangan")
-        cd1, cd2, cd3 = st.columns([1.4, 1.4, 0.9])
-        with cd1:
-            st.text_input("Sumber Dana (Kalimat Pengantar)", key="sumber_dana")
-        with cd2:
-            st.text_input("Keterangan Kolom Tabel (Merged)", key="ket_tabel_dana")
-        with cd3:
-            st.write("")
-            st.checkbox("Merge Vertikal Kolom Keterangan", key="merge_ket_vertikal")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        col_paste, col_quick = st.columns([1.15, 1.15])
-
-        # Fitur 1: Smart Paste dari WhatsApp / Catatan
-        with col_paste:
-            st.markdown('<div class="dwp-card">', unsafe_allow_html=True)
-            st.markdown("#### ⚡ Fitur 1: Smart Paste dari WhatsApp / Catatan")
-            st.caption("Contoh format bebas: `Sarapan Pagi (Roti) | 20 | 13000` atau `Roti 20 x 13.000`, `Iuran Blitar 10 total 675.000`, `Mobil 2 -`")
-            wa_text = st.text_area(
-                "Tempel daftar rincian belanja dari WA di sini:",
-                height=120,
-                placeholder="Iuran DWP Gabungan di Blitar | 10 | 0 | 675000" + NL + "Doorprize | 10 | 0 | 0" + NL + "Sarapan Pagi (Roti) 20 x 13.000",
-                key="wa_paste_box",
+    if active_menu == MENU_DASHBOARD:
+        k1, k2, k3, k4 = st.columns(4)
+        with k1:
+            st.markdown(
+                f"""
+                <div class="fily-pill pill-emerald">
+                    <div class="fily-pill-icon">↗</div>
+                    <div style="text-align:right;">
+                        <div style="font-size:12px;font-weight:700;opacity:0.92;">TOTAL RENCANA (RAB)</div>
+                        <div style="font-size:20px;font-weight:800;">{fmt_rp_cell(tot_rab_val, False)}</div>
+                        <div style="font-size:11.5px;opacity:0.9;">{len(df_rab_now)} Item Anggaran</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            c_p1, c_p2 = st.columns(2)
-            with c_p1:
-                if st.button("🔮 Ekstrak & Tambah ke Tabel", use_container_width=True):
-                    new_items = smart_paste_parser(wa_text, st.session_state.get("ket_tabel_dana", ""))
-                    if new_items:
-                        cur_list = st.session_state["df_items_dana"].to_dict(orient="records")
-                        cur_list.extend(new_items)
-                        st.session_state["df_items_dana"] = normalize_items_df(cur_list, st.session_state.get("ket_tabel_dana", ""))
-                        st.toast(f"{len(new_items)} item berhasil diekstrak ke tabel!", icon="🔮")
-                        st.rerun()
-            with c_p2:
-                if st.button("🔄 Ganti Seluruh Isi Tabel", use_container_width=True):
-                    new_items = smart_paste_parser(wa_text, st.session_state.get("ket_tabel_dana", ""))
-                    if new_items:
-                        st.session_state["df_items_dana"] = normalize_items_df(new_items, st.session_state.get("ket_tabel_dana", ""))
-                        st.toast("Tabel rincian dana berhasil diperbarui!", icon="✅")
-                        st.rerun()
+        with k2:
+            st.markdown(
+                f"""
+                <div class="fily-pill pill-blue">
+                    <div class="fily-pill-icon">🛍️</div>
+                    <div style="text-align:right;">
+                        <div style="font-size:12px;font-weight:700;opacity:0.92;">TOTAL REALISASI (LPJ)</div>
+                        <div style="font-size:20px;font-weight:800;">{fmt_rp_cell(tot_lpj_val, False)}</div>
+                        <div style="font-size:11.5px;opacity:0.9;">{len(df_lpj_now)} Item Realisasi</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with k3:
+            selisih_label = ("+" if selisih_val > 0 else "") + fmt_ribuan(selisih_val)
+            st.markdown(
+                f"""
+                <div class="fily-pill pill-rose">
+                    <div class="fily-pill-icon">🎯</div>
+                    <div style="text-align:right;">
+                        <div style="font-size:12px;font-weight:700;opacity:0.92;">SELISIH (LPJ vs RAB)</div>
+                        <div style="font-size:20px;font-weight:800;">Rp {selisih_label}</div>
+                        <div style="font-size:11.5px;opacity:0.9;">Analisis Realisasi Dana</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with k4:
+            st.markdown(
+                f"""
+                <div class="fily-pill pill-amber">
+                    <div class="fily-pill-icon">📊</div>
+                    <div style="text-align:right;">
+                        <div style="font-size:12px;font-weight:700;opacity:0.92;">ARSIP DOKUMEN</div>
+                        <div style="font-size:20px;font-weight:800;">{arsip_count} Dokumen</div>
+                        <div style="font-size:11.5px;opacity:0.9;">Tersimpan di Database</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        col_comp, col_short = st.columns([1.85, 1.15])
+        with col_comp:
+            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+            st.markdown("#### 📊 Tabel Komparasi Anggaran (Rencana RAB vs Realisasi LPJ)")
+            max_len = max(len(df_rab_now), len(df_lpj_now))
+            comp_rows = []
+            for i in range(max_len):
+                r_rab = df_rab_now.iloc[i] if i < len(df_rab_now) else None
+                r_lpj = df_lpj_now.iloc[i] if i < len(df_lpj_now) else None
+                comp_rows.append({
+                    "NO": i + 1,
+                    "ITEM RENCANA (RAB)": str(r_rab["KEBUTUHAN KEGIATAN"]) if r_rab is not None else "-",
+                    "ANGGARAN RAB": fmt_rp_cell(r_rab["HARGA TOTAL"], True) if r_rab is not None else "-",
+                    "ITEM REALISASI (LPJ)": str(r_lpj["KEBUTUHAN KEGIATAN"]) if r_lpj is not None else "-",
+                    "REALISASI LPJ": fmt_rp_cell(r_lpj["HARGA TOTAL"], True) if r_lpj is not None else "-",
+                })
+            st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # Fitur 2: Form Tambah Item Cepat (1 Baris)
-        with col_quick:
-            st.markdown('<div class="dwp-card">', unsafe_allow_html=True)
-            st.markdown("#### ➕ Fitur 2: Tambah Item Cepat (Logika 3-Mode)")
-            q_nama = st.text_input("Kebutuhan Kegiatan", key="q_nama_in", placeholder="Contoh: Hadiah Peserta Lomba Tumpeng")
-            cq1, cq2 = st.columns([0.8, 1.5])
-            with cq1:
-                q_jml = st.number_input("Jumlah", min_value=1, value=1, step=1, key="q_jml_in")
-            with cq2:
-                q_mode = st.selectbox(
-                    "Tipe Perhitungan Item",
-                    options=[
-                        "Normal (Jumlah x Harga Satuan)",
-                        "Borongan / Lump Sum (Langsung Harga Total, Satuan Rp -)",
-                        "Fasilitas / In-Kind (Harga Satuan Rp - & Total Rp -)",
-                    ],
-                    key="q_mode_in",
+        with col_short:
+            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+            st.markdown("#### ⚡ Ringkasan Dokumen Aktif & Pintasan Kerja")
+            st.markdown(
+                f"""
+                - **RAB Aktif (`{st.session_state.get('id_rab')}`)**:
+                  {st.session_state.get('lokasi_acara_rab')} — **{fmt_rp_cell(tot_rab_val, False)}**
+                - **LPJ Aktif (`{st.session_state.get('id_lpj')}`)**:
+                  {st.session_state.get('tempat_acara')} — **{fmt_rp_cell(tot_lpj_val, False)}**
+                - **Status Konversi RAB → LPJ**:
+                  `{st.session_state.get('status_konversi')}`
+                """
+            )
+            if st.button("📋 Buka Editor Penyusunan RAB", use_container_width=True):
+                switch_menu(MENU_RAB)
+            if st.button("📝 Buka Editor Pembuatan LPJ", use_container_width=True):
+                switch_menu(MENU_LPJ)
+            if st.button("🖨️ Buka Preview Kertas A4 & Download Word/PDF", use_container_width=True):
+                switch_menu(MENU_PREVIEW)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    # ==========================================================================
+    # VIEW 1: 📋 1. SUSUN RAB (PRA-KEGIATAN)
+    # ==========================================================================
+    elif active_menu == MENU_RAB:
+        st.markdown(
+            """
+            <div class="fily-section-hdr">
+                <div>
+                    <div style="font-size:17px;font-weight:800;color:#0F172A;">📋 MODUL PENYUSUNAN RAB (PRA-KEGIATAN)</div>
+                    <div style="font-size:12.5px;color:#475569;">Sesuai Pakem Resmi: RAB DWP GABUNGAN DI JEMBER.docx</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        c_rab1, c_rab2 = st.columns([1.15, 1.15])
+        with c_rab1:
+            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+            st.markdown("#### 📌 CARD 1: Identitas & Judul 3 Baris RAB")
+            st.text_input("Baris 1 Judul (Tetap)", key="baris_1_judul")
+            st.text_area("Baris 2 Nama Kegiatan (Otomatis Kapital di Dokumen)", key="nama_kegiatan_rab", height=76)
+            st.text_input("Baris 3 Lokasi Acara (Contoh: (DI KPPBC TMP C JEMBER))", key="lokasi_acara_rab")
+            st.text_input("Sumber Dana (Kalimat Pengantar)", key="sumber_dana_rab")
+            ck1, ck2 = st.columns([1.4, 1])
+            with ck1:
+                st.text_input("Keterangan Kolom Tabel RAB (Opsional)", key="ket_tabel_rab")
+            with ck2:
+                st.write("")
+                st.checkbox("Merge Kolom Keterangan", key="merge_ket_rab")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        with c_rab2:
+            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+            st.markdown("#### ⚡ CARD 2: Smart Paste WA & Input Cepat RAB")
+            mode_in_rab = st.radio(
+                "Pilih Metode Input Cepat:",
+                options=["Smart Paste WhatsApp", "Form Tambah 1 Baris"],
+                horizontal=True,
+                key="rab_input_mode",
+            )
+            if mode_in_rab == "Smart Paste WhatsApp":
+                wa_rab = st.text_area(
+                    "Tempel rincian anggaran dari WA (Contoh: `Iuran DWP 7 total 450.000`, `Doorprize 7 x 50.000`, `Mobil 2 -`):",
+                    height=115,
+                    key="wa_paste_rab",
                 )
-            q_nom_str = st.text_input("Nominal (Rp) — boleh ketik 250000 atau 250.000", value="0", key="q_nom_in")
-
-            if st.button("➕ Tambahkan Baris ke Tabel Rincian Dana", use_container_width=True):
-                if q_nama.strip():
-                    nom_val = parse_num(q_nom_str)
-                    if q_mode.startswith("Normal"):
-                        hsat, htot = nom_val, int(q_jml) * nom_val
-                    elif q_mode.startswith("Borongan"):
-                        hsat, htot = 0, nom_val
-                    else:
-                        hsat, htot = 0, 0
-
-                    cur_list = st.session_state["df_items_dana"].to_dict(orient="records")
-                    cur_list.append({
-                        "KEBUTUHAN KEGIATAN": q_nama.strip(),
-                        "JUMLAH": int(q_jml),
-                        "HARGA SATUAN": hsat,
-                        "HARGA TOTAL": htot,
-                        "KETERANGAN": st.session_state.get("ket_tabel_dana", ""),
-                    })
-                    st.session_state["df_items_dana"] = normalize_items_df(cur_list, st.session_state.get("ket_tabel_dana", ""))
-                    st.toast(f"Item '{q_nama.strip()}' berhasil ditambahkan!", icon="➕")
-                    st.rerun()
-                else:
-                    st.warning("Mohon isi nama Kebutuhan Kegiatan terlebih dahulu.")
+                b_p1, b_p2 = st.columns(2)
+                with b_p1:
+                    if st.button("🔮 Tambah ke Tabel RAB", use_container_width=True):
+                        items_new = smart_paste_parser(wa_rab, st.session_state.get("ket_tabel_rab", ""))
+                        if items_new:
+                            cur = st.session_state["df_items_rab"].to_dict(orient="records")
+                            cur.extend(items_new)
+                            st.session_state["df_items_rab"] = normalize_items_df(cur, st.session_state.get("ket_tabel_rab", ""))
+                            st.toast(f"{len(items_new)} item ditambahkan ke RAB!", icon="✅")
+                            st.rerun()
+                with b_p2:
+                    if st.button("🔄 Ganti Seluruh Tabel RAB", use_container_width=True):
+                        items_new = smart_paste_parser(wa_rab, st.session_state.get("ket_tabel_rab", ""))
+                        if items_new:
+                            st.session_state["df_items_rab"] = normalize_items_df(items_new, st.session_state.get("ket_tabel_rab", ""))
+                            st.toast("Tabel RAB berhasil diganti!", icon="🔄")
+                            st.rerun()
+            else:
+                qr_nama = st.text_input("Kebutuhan Kegiatan RAB", key="qr_nama")
+                q1, q2 = st.columns([0.8, 1.4])
+                with q1:
+                    qr_jml = st.number_input("Jumlah", min_value=1, value=1, step=1, key="qr_jml")
+                with q2:
+                    qr_tipe = st.selectbox(
+                        "Mode Perhitungan",
+                        ["Normal (Qty x Harga Satuan)", "Borongan (Langsung Harga Total)", "Fasilitas / In-Kind (Rp -)"],
+                        key="qr_tipe",
+                    )
+                qr_nom = st.text_input("Nominal (Rp)", value="0", key="qr_nom")
+                if st.button("➕ Tambahkan Item ke RAB", use_container_width=True):
+                    if qr_nama.strip():
+                        v_nom = parse_num(qr_nom)
+                        if qr_tipe.startswith("Normal"):
+                            hs, ht = v_nom, int(qr_jml) * v_nom
+                        elif qr_tipe.startswith("Borongan"):
+                            hs, ht = 0, v_nom
+                        else:
+                            hs, ht = 0, 0
+                        cur = st.session_state["df_items_rab"].to_dict(orient="records")
+                        cur.append({
+                            "KEBUTUHAN KEGIATAN": qr_nama.strip(),
+                            "JUMLAH": int(qr_jml),
+                            "HARGA SATUAN": hs,
+                            "HARGA TOTAL": ht,
+                            "KETERANGAN": st.session_state.get("ket_tabel_rab", ""),
+                        })
+                        st.session_state["df_items_rab"] = normalize_items_df(cur, st.session_state.get("ket_tabel_rab", ""))
+                        st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # Fitur 3: Tabel Interaktif (st.data_editor)
-        st.markdown('<div class="dwp-card">', unsafe_allow_html=True)
-        st.markdown("#### 📊 Fitur 3: Tabel Rincian Dana Interaktif (Klik Sel untuk Edit Langsung)")
-        st.caption(
-            "**Tips 3-Mode:** "
-            "(1) Isi **HARGA SATUAN > 0** agar **HARGA TOTAL** dihitung otomatis (`JUMLAH x HARGA SATUAN`). "
-            "(2) Biarkan **HARGA SATUAN = 0** dan isi **HARGA TOTAL > 0** untuk item Borongan/Iuran (`Rp -` pada Harga Satuan). "
-            "(3) Isi **0** pada keduanya untuk item Fasilitas/Doorprize/Mobil (`Rp -`)."
+        # CARD 3: Tabel Rincian Anggaran Interaktif (Anti Cursor-Jump)
+        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+        hdr_t1, hdr_t2 = st.columns([2.2, 1])
+        with hdr_t1:
+            st.markdown("#### 💰 CARD 3: Tabel Rincian Anggaran Interaktif (Logika 3-Mode Otomatis)")
+        with hdr_t2:
+            if st.button("🔄 Hitung Ulang & Rapikan Nomor Urut RAB", use_container_width=True):
+                st.session_state["df_items_rab"] = normalize_items_df(
+                    st.session_state.get("df_items_rab", pd.DataFrame()),
+                    st.session_state.get("ket_tabel_rab", ""),
+                )
+                st.rerun()
+
+        edited_rab_raw = st.data_editor(
+            st.session_state["df_items_rab"],
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "NO": st.column_config.NumberColumn("NO", width="small", disabled=True),
+                "KEBUTUHAN KEGIATAN": st.column_config.TextColumn("KEBUTUHAN KEGIATAN", width="large", required=True),
+                "JUMLAH": st.column_config.NumberColumn("JUMLAH", min_value=0, step=1, width="small"),
+                "HARGA SATUAN": st.column_config.NumberColumn("HARGA SATUAN (Rp)", min_value=0, step=1000, format="%d"),
+                "HARGA TOTAL": st.column_config.NumberColumn("HARGA TOTAL (Rp)", min_value=0, step=1000, format="%d"),
+                "KETERANGAN": st.column_config.TextColumn("KETERANGAN", width="medium"),
+            },
+            key="editor_table_rab",
         )
 
-        edited_df = st.data_editor(
+        # Reaktif tanpa st.rerun() paksa agar kursor tidak lompat saat pengguna mengetik
+        df_rab_live = normalize_items_df(edited_rab_raw, st.session_state.get("ket_tabel_rab", ""))
+        total_rab_live = int(df_rab_live["HARGA TOTAL"].sum()) if not df_rab_live.empty else 0
+
+        # Detektor Konsistensi Lokasi Otomatis
+        mismatches = detect_location_mismatch(st.session_state.get("lokasi_acara_rab", ""), df_rab_live)
+        if mismatches:
+            for m in mismatches:
+                st.warning(
+                    f"⚠️ **Detektor Konsistensi Lokasi**: Judul RAB tertulis **{m['target_city']}**, "
+                    f"tetapi Baris #{m['no']} (`{m['item']}`) menyebut **{m['wrong_city']}**."
+                )
+            if st.button(f"🛠️ Perbaiki Otomatis Nama Kota Menjadi '{mismatches[0]['target_city']}'", use_container_width=False):
+                fixed_rows = df_rab_live.to_dict(orient="records")
+                for row_f in fixed_rows:
+                    for m in mismatches:
+                        row_f["KEBUTUHAN KEGIATAN"] = str(row_f["KEBUTUHAN KEGIATAN"]).replace(m["wrong_city"], m["target_city"]).replace(m["wrong_city"].lower(), m["target_city"])
+                st.session_state["df_items_rab"] = normalize_items_df(fixed_rows, st.session_state.get("ket_tabel_rab", ""))
+                st.rerun()
+
+        st.info(
+            f"📌 **Total Item RAB:** `{len(df_rab_live)} Baris`  |  "
+            f"💵 **TOTAL ANGGARAN RAB:** `{fmt_rp_cell(total_rab_live, False)}` "
+            f"*({terbilang(total_rab_live)})*"
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # CARD 4A & 4B: Catatan Kaki (*Note :) & Kalkulator Sub-Item Note
+        cn1, cn2 = st.columns([1.2, 1.1])
+        with cn1:
+            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+            st.markdown("#### 📝 CARD 4A: Catatan Kaki RAB (`*Note :` Ber-Bullet)")
+            st.text_area(
+                "Setiap 1 baris otomatis menjadi 1 poin bullet (•) di bawah tabel RAB:",
+                key="catatan_note_rab",
+                height=115,
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        with cn2:
+            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+            st.markdown("#### 🧮 CARD 4B: Kalkulator Sub-Item `*Note` & Aksi RAB")
+            st.caption("Bantu susun rincian gabungan (seperti Iuran/Tol PP) untuk disisipkan ke `*Note :`")
+            calc_desc = st.text_input(
+                "Ketik Rincian Catatan Baru:",
+                placeholder="Contoh: E-Toll (PP) Tol Singosari - Probolinggo Timur Rp 112.000 x 2",
+                key="calc_note_input",
+            )
+            if st.button("➕ Sisipkan Baris ke *Note RAB", use_container_width=True):
+                if calc_desc.strip():
+                    cur_note = (st.session_state.get("catatan_note_rab") or "").strip()
+                    st.session_state["catatan_note_rab"] = (cur_note + NL + calc_desc.strip()).strip()
+                    st.rerun()
+
+            ba1, ba2 = st.columns(2)
+            with ba1:
+                if st.button("💾 Simpan RAB ke Database", use_container_width=True):
+                    st.session_state["df_items_rab"] = df_rab_live
+                    rab_pay = collect_rab_payload(df_rab_live)
+                    ok_s, msg_s = save_rab_to_storage(rab_pay, sheet_id_active, creds_active)
+                    if ok_s:
+                        st.success(msg_s)
+                    else:
+                        st.error(msg_s)
+            with ba2:
+                if st.button("🖨️ Preview & Unduh RAB", use_container_width=True):
+                    st.session_state["df_items_rab"] = df_rab_live
+                    switch_menu(MENU_PREVIEW, preview_mode="RAB")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    # ==========================================================================
+    # VIEW 2: 📝 2. BUAT LPJ (PASCA-KEGIATAN)
+    # ==========================================================================
+    elif active_menu == MENU_LPJ:
+        st.markdown(
+            """
+            <div class="fily-section-hdr">
+                <div>
+                    <div style="font-size:17px;font-weight:800;color:#0F172A;">📝 MODUL PEMBUATAN LPJ (PASCA-KEGIATAN)</div>
+                    <div style="font-size:12.5px;color:#475569;">Sesuai Pakem Resmi: LPJ_DWP GABUNGAN DI BLITAR_2026-1.docx</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        cl1, cl2 = st.columns([1.2, 1.1])
+        with cl1:
+            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+            st.markdown("#### 📌 CARD 1: Identitas Surat & Pelaksanaan Kegiatan LPJ")
+            d1, d2 = st.columns([1, 1.6])
+            with d1:
+                st.date_input("Tanggal Surat LPJ", key="tgl_laporan")
+            with d2:
+                st.text_input("Nama Kegiatan Utama", key="nama_kegiatan")
+
+            d3, d4 = st.columns(2)
+            with d3:
+                st.text_input("Tema Kegiatan (Opsional)", key="tema_kegiatan")
+            with d4:
+                st.text_input("Konteks Tambahan / HUT (Opsional)", key="konteks_hut")
+
+            d5, d6, d7 = st.columns([1, 0.9, 1.2])
+            with d5:
+                st.date_input("Tanggal Acara", key="tgl_acara")
+                st.text_input("Tanggal Manual (Opsional)", key="tgl_acara_manual")
+            with d6:
+                st.text_input("Waktu Acara", key="waktu_acara")
+            with d7:
+                st.text_input("Tempat Acara", key="tempat_acara")
+
+            st.text_area("Rangkaian Kegiatan (1 Baris = 1 Nomor Urut Otomatis)", key="rangkaian_kegiatan", height=105)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        with cl2:
+            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+            st.markdown("#### ⚡ CARD 2: Sumber Dana, Tarik dari RAB & Smart Paste WA")
+            if st.button("🚀 Tarik Seluruh Data & Tabel dari RAB Aktif Sekarang", use_container_width=True):
+                convert_active_rab_to_lpj(df_rab_now)
+                st.toast("Data RAB berhasil ditarik ke form LPJ!", icon="🚀")
+                st.rerun()
+
+            st.text_input("Sumber Dana (Kalimat Pengantar LPJ)", key="sumber_dana")
+            k_col1, k_col2 = st.columns([1.4, 1])
+            with k_col1:
+                st.text_input("Keterangan Kolom Tabel LPJ (Merged)", key="ket_tabel_dana")
+            with k_col2:
+                st.write("")
+                st.checkbox("Merge Vertikal Keterangan", key="merge_ket_vertikal")
+
+            wa_lpj = st.text_area(
+                "Smart Paste Rincian Belanja LPJ dari WhatsApp:",
+                height=100,
+                placeholder="Sarapan Pagi (Roti) 20 x 13.000" + NL + "Iuran Blitar 10 total 675.000",
+                key="wa_paste_lpj",
+            )
+            bl1, bl2 = st.columns(2)
+            with bl1:
+                if st.button("🔮 Tambah ke Tabel LPJ", use_container_width=True):
+                    new_l = smart_paste_parser(wa_lpj, st.session_state.get("ket_tabel_dana", ""))
+                    if new_l:
+                        cur = st.session_state["df_items_dana"].to_dict(orient="records")
+                        cur.extend(new_l)
+                        st.session_state["df_items_dana"] = normalize_items_df(cur, st.session_state.get("ket_tabel_dana", ""))
+                        st.rerun()
+            with bl2:
+                if st.button("🔄 Ganti Seluruh Tabel LPJ", use_container_width=True):
+                    new_l = smart_paste_parser(wa_lpj, st.session_state.get("ket_tabel_dana", ""))
+                    if new_l:
+                        st.session_state["df_items_dana"] = normalize_items_df(new_l, st.session_state.get("ket_tabel_dana", ""))
+                        st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # CARD 3: Tabel Rincian Realisasi Dana LPJ (Anti Cursor-Jump)
+        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+        hl1, hl2 = st.columns([2.2, 1])
+        with hl1:
+            st.markdown("#### 💰 CARD 3: Tabel Realisasi Dana LPJ Interaktif (Logika 3-Mode)")
+        with hl2:
+            if st.button("🔄 Hitung Ulang & Rapikan Nomor Urut LPJ", use_container_width=True):
+                st.session_state["df_items_dana"] = normalize_items_df(
+                    st.session_state.get("df_items_dana", pd.DataFrame()),
+                    st.session_state.get("ket_tabel_dana", ""),
+                )
+                st.rerun()
+
+        edited_lpj_raw = st.data_editor(
             st.session_state["df_items_dana"],
             num_rows="dynamic",
             use_container_width=True,
@@ -2193,134 +2964,179 @@ def main():
                 "HARGA TOTAL": st.column_config.NumberColumn("HARGA TOTAL (Rp)", min_value=0, step=1000, format="%d"),
                 "KETERANGAN": st.column_config.TextColumn("KETERANGAN", width="medium"),
             },
-            key="data_editor_lpj",
+            key="editor_table_lpj",
         )
 
-        df_recalc = normalize_items_df(edited_df, st.session_state.get("ket_tabel_dana", ""))
-        if not df_recalc.equals(st.session_state["df_items_dana"]):
-            st.session_state["df_items_dana"] = df_recalc
-            st.rerun()
+        df_lpj_live = normalize_items_df(edited_lpj_raw, st.session_state.get("ket_tabel_dana", ""))
+        total_lpj_live = int(df_lpj_live["HARGA TOTAL"].sum()) if not df_lpj_live.empty else 0
 
-        total_items = len(df_recalc)
-        total_pengeluaran = int(df_recalc["HARGA TOTAL"].sum()) if not df_recalc.empty else 0
-        teks_terbilang = terbilang(total_pengeluaran)
-
-        m1, m2, m3 = st.columns([1, 1.3, 1.8])
-        with m1:
-            st.markdown(
-                f'<div class="metric-box"><div style="font-size:13px;font-weight:600;color:#64748B;">Total Item Kebutuhan</div>'
-                f'<div style="font-size:24px;font-weight:800;color:#7C2D12;">{total_items} Item</div></div>',
-                unsafe_allow_html=True,
-            )
-        with m2:
-            st.markdown(
-                f'<div class="metric-box"><div style="font-size:13px;font-weight:600;color:#64748B;">Total Pengeluaran Dana</div>'
-                f'<div style="font-size:24px;font-weight:800;color:#7C2D12;">{fmt_rp_cell(total_pengeluaran, is_dash_if_zero=False)}</div></div>',
-                unsafe_allow_html=True,
-            )
-        with m3:
-            st.markdown(
-                f'<div class="metric-box"><div style="font-size:13px;font-weight:600;color:#64748B;">Terbilang Rupiah</div>'
-                f'<div style="font-size:16px;font-weight:700;color:#0F172A;margin-top:4px;">{teks_terbilang}</div></div>',
-                unsafe_allow_html=True,
-            )
+        st.info(
+            f"📌 **Total Item LPJ:** `{len(df_lpj_live)} Baris`  |  "
+            f"💵 **TOTAL REALISASI LPJ:** `{fmt_rp_cell(total_lpj_live, False)}` "
+            f"*({terbilang(total_lpj_live)})*"
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # ==========================================================================
-    # TAB 3: PREVIEW PERSIS ASLI, SIMPAN GSHEET & DOWNLOAD CENTER (WORD & PDF)
-    # ==========================================================================
-    with tab3:
-        st.markdown('<div class="dwp-card">', unsafe_allow_html=True)
-        st.markdown("#### 🖋️ Pengaturan Penutup, Tanda Tangan & Lampiran Dokumentasi")
-
-        cp1, cp2 = st.columns([1.3, 1])
+        # CARD 4: Penutup, Tanda Tangan & Simpan LPJ
+        cp1, cp2 = st.columns([1.25, 1.05])
         with cp1:
-            st.checkbox("Tampilkan Paragraf Ucapan Terima Kasih Donatur", key="tampilkan_ucapan_donatur")
+            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+            st.markdown("#### 📝 CARD 4A: Paragraf Ucapan Donatur & Catatan Instagram")
+            st.checkbox("Tampilkan Paragraf Terima Kasih Donatur", key="tampilkan_ucapan_donatur")
             if st.session_state.get("tampilkan_ucapan_donatur", True):
-                st.text_area("Redaksi Ucapan Terima Kasih Donatur", key="teks_ucapan_donatur", height=95)
+                st.text_area("Redaksi Ucapan Terima Kasih Donatur", key="teks_ucapan_donatur", height=90)
             st.text_input("Catatan Dokumentasi Instagram", key="catatan_ig")
+            st.markdown("</div>", unsafe_allow_html=True)
 
         with cp2:
+            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+            st.markdown("#### 🖋️ CARD 4B: Penandatangan & Aksi Simpan LPJ")
             st.text_input("Jabatan Baris 1", key="jabatan_baris_1")
             st.text_input("Jabatan Baris 2", key="jabatan_baris_2")
             st.text_input("Nama Penandatangan", key="nama_penandatangan")
             st.checkbox("Sertakan Gambar Tanda Tangan Asli (Ny. Rini Johan Pandores)", key="tampilkan_ttd")
-            up_sig = st.file_uploader("Ganti Gambar Tanda Tangan (PNG/JPG Opsional)", type=["png", "jpg", "jpeg"], key="up_custom_sig")
 
-        custom_sig_bytes = None
-        if up_sig is not None:
-            custom_sig_bytes = up_sig.getvalue()
+            al1, al2 = st.columns(2)
+            with al1:
+                if st.button("💾 Simpan LPJ ke Database", use_container_width=True):
+                    st.session_state["df_items_dana"] = df_lpj_live
+                    lpj_pay = collect_lpj_payload(df_lpj_live)
+                    ok_l, msg_l = save_lpj_to_storage(lpj_pay, sheet_id_active, creds_active)
+                    if ok_l:
+                        st.success(msg_l)
+                    else:
+                        st.error(msg_l)
+            with al2:
+                if st.button("🖨️ Preview & Unduh LPJ", use_container_width=True):
+                    st.session_state["df_items_dana"] = df_lpj_live
+                    switch_menu(MENU_PREVIEW, preview_mode="LPJ")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        with st.expander("📸 Lampiran Foto Dokumentasi / Nota Kwitansi Tambahan (Auto-Grid 2x2 di Halaman Baru — Opsional)", expanded=False):
-            up_photos = st.file_uploader(
-                "Upload Foto Kegiatan atau Kwitansi (Bisa pilih beberapa foto sekaligus)",
-                type=["png", "jpg", "jpeg"],
-                accept_multiple_files=True,
-                key="up_lampiran_fotos",
+    # ==========================================================================
+    # VIEW 3: 🖨️ 3. PREVIEW A4 & DOWNLOAD CENTER (SATU-SATUNYA TEMPAT RENDER PDF)
+    # ==========================================================================
+    elif active_menu == MENU_PREVIEW:
+        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+        p_col1, p_col2 = st.columns([1.3, 1.7])
+        with p_col1:
+            doc_mode_sel = st.radio(
+                "Pilih Dokumen yang Ingin Di-Preview & Diunduh:",
+                options=["LPJ", "RAB"],
+                format_func=lambda x: "📝 Dokumen LPJ Resmi (Pasca-Kegiatan)" if x == "LPJ" else "📋 Dokumen RAB Resmi (Pra-Kegiatan)",
+                horizontal=True,
+                key="preview_doc_mode",
             )
-            attachment_images = []
-            if up_photos:
-                for idx_p, f_img in enumerate(up_photos, start=1):
-                    attachment_images.append({
-                        "bytes": f_img.getvalue(),
-                        "caption": f"Dokumentasi / Kwitansi {idx_p}: {f_img.name}",
-                    })
-                st.success(f"{len(attachment_images)} foto siap dilampirkan dalam format Grid 2x2 rapi.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with p_col2:
+            up_sig_custom = st.file_uploader("Upload Tanda Tangan Baru PNG/JPG (Opsional, khusus LPJ)", type=["png", "jpg", "jpeg"], key="up_sig_preview")
+            up_fotos = st.file_uploader("Upload Lampiran Foto/Kwitansi Grid 2x2 (Opsional, khusus LPJ)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="up_fotos_preview")
 
-        # Generate Dokumen Word & PDF secara Real-Time
-        current_payload = collect_current_payload()
-        docx_bytes = generate_lpj_docx_bytes(
-            current_payload,
-            custom_sig_bytes=custom_sig_bytes,
-            attachment_images=attachment_images,
-        )
-        pdf_bytes, pdf_status_msg = convert_docx_bytes_to_pdf_bytes(docx_bytes)
+        custom_sig_bytes = up_sig_custom.getvalue() if up_sig_custom is not None else None
+        attachment_imgs = []
+        if up_fotos:
+            for idx_f, f_obj in enumerate(up_fotos, start=1):
+                attachment_imgs.append({"bytes": f_obj.getvalue(), "caption": f"Dokumentasi {idx_f}: {f_obj.name}"})
 
-        clean_keg = "".join(ch if ch.isalnum() else "_" for ch in current_payload.get("nama_kegiatan", "LPJ_DWP")[:35]).strip("_")
-        file_base = f"LPJ_DWP_{clean_keg or 'MALANG'}_{date.today().strftime('%Y%m%d')}"
+        if doc_mode_sel == "RAB":
+            active_payload = collect_rab_payload(df_rab_now)
+            docx_bytes = generate_rab_docx_bytes(active_payload)
+            clean_name = "".join(ch if ch.isalnum() else "_" for ch in active_payload.get("lokasi_acara_rab", "JEMBER")[:25]).strip("_")
+            file_base = f"RAB_DWP_{clean_name or 'MALANG'}_{date.today().strftime('%Y%m%d')}"
+        else:
+            active_payload = collect_lpj_payload(df_lpj_now)
+            docx_bytes = generate_lpj_docx_bytes(active_payload, custom_sig_bytes=custom_sig_bytes, attachment_images=attachment_imgs)
+            clean_name = "".join(ch if ch.isalnum() else "_" for ch in active_payload.get("tempat_acara", "BLITAR")[:25]).strip("_")
+            file_base = f"LPJ_DWP_{clean_name or 'MALANG'}_{date.today().strftime('%Y%m%d')}"
 
-        # Tombol Aksi Utama (Simpan GSheet + Direct Download Word & PDF)
-        st.markdown('<div class="dwp-card">', unsafe_allow_html=True)
-        st.markdown("#### 🚀 Pusat Simpan Database & Unduh Dokumen Resmi (Anti-Error 404)")
+        pdf_bytes, pdf_msg = convert_docx_bytes_to_pdf_bytes(docx_bytes)
 
-        ca1, ca2, ca3 = st.columns([1.1, 1.15, 1.15])
-        with ca1:
-            if st.button("💾 Simpan / Update ke Google Sheets", use_container_width=True):
-                ok_save, msg_save = save_lpj_to_storage(current_payload, sheet_id_in, creds_str)
-                if ok_save:
-                    st.success(msg_save)
+        dl1, dl2, dl3 = st.columns([1.1, 1.15, 1.15])
+        with dl1:
+            if st.button(f"💾 Simpan {doc_mode_sel} Ini ke Google Sheets", use_container_width=True):
+                if doc_mode_sel == "RAB":
+                    ok_s, msg_s = save_rab_to_storage(active_payload, sheet_id_active, creds_active)
                 else:
-                    st.error(msg_save)
+                    ok_s, msg_s = save_lpj_to_storage(active_payload, sheet_id_active, creds_active)
+                if ok_s:
+                    st.success(msg_s)
+                else:
+                    st.error(msg_s)
 
-        with ca2:
-            html_dl_docx = make_direct_download_html(
-                file_bytes=docx_bytes,
-                filename=f"{file_base}.docx",
-                mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                label="📄 Unduh File Word Resmi (.docx)",
-                bg_gradient="linear-gradient(135deg, #1E3A8A 0%, #1D4ED8 100%)",
+        with dl2:
+            st.markdown(
+                make_direct_download_html(
+                    file_bytes=docx_bytes,
+                    filename=f"{file_base}.docx",
+                    mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    label=f"📄 Unduh Word {doc_mode_sel} Resmi (.docx)",
+                    bg_gradient="linear-gradient(135deg, #2B98F0 0%, #1D7FE0 100%)",
+                ),
+                unsafe_allow_html=True,
             )
-            st.markdown(html_dl_docx, unsafe_allow_html=True)
 
-        with ca3:
+        with dl3:
             if pdf_bytes:
-                html_dl_pdf = make_direct_download_html(
-                    file_bytes=pdf_bytes,
-                    filename=f"{file_base}.pdf",
-                    mime_type="application/pdf",
-                    label="📕 Unduh File PDF Siap Sebar (.pdf)",
-                    bg_gradient="linear-gradient(135deg, #7C2D12 0%, #9A3412 55%, #B45309 100%)",
+                st.markdown(
+                    make_direct_download_html(
+                        file_bytes=pdf_bytes,
+                        filename=f"{file_base}.pdf",
+                        mime_type="application/pdf",
+                        label=f"📕 Unduh PDF {doc_mode_sel} Siap Sebar (.pdf)",
+                        bg_gradient="linear-gradient(135deg, #00D09C 0%, #00B386 100%)",
+                    ),
+                    unsafe_allow_html=True,
                 )
-                st.markdown(html_dl_pdf, unsafe_allow_html=True)
             else:
-                st.info(pdf_status_msg)
+                st.info(pdf_msg)
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Live Preview Visual HTML Kertas A4
-        st.markdown("#### 🖥️ Live Preview Visual Kertas A4 (Dilengkapi Tombol Cetak PDF Browser)")
-        a4_html = build_a4_live_preview_html(current_payload, custom_sig_bytes=custom_sig_bytes)
+        a4_html = build_a4_live_preview_html(doc_mode_sel, active_payload, custom_sig_bytes=custom_sig_bytes)
         st.components.v1.html(a4_html, height=1080, scrolling=True)
+
+    # ==========================================================================
+    # VIEW 4: 🗄️ 4. DATABASE CLOUD (RIWAYAT RAB, LPJ & REKAP ITEM DANA)
+    # ==========================================================================
+    elif active_menu == MENU_CLOUD:
+        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
+        st.markdown("#### 🗄️ Manajemen Arsip Database Google Sheets (`DATABASE_RAB`, `DATABASE_LPJ`, `REKAP_ITEM_DANA`)")
+        rab_rows = bundle.get("rab_rows", [])
+        lpj_rows = bundle.get("lpj_rows", [])
+        rk_rows = bundle.get("rekap_rows", [])
+
+        db_c1, db_c2 = st.columns(2)
+        with db_c1:
+            st.markdown("##### 📋 Muat / Edit Ulang Arsip RAB")
+            if rab_rows:
+                rab_map = {f"{r.get('ID_RAB')} | {r.get('LOKASI_ACARA')} ({fmt_rp_cell(r.get('TOTAL_RAB', 0), False)})": r for r in rab_rows}
+                sel_rab = st.selectbox("Pilih Arsip RAB:", options=["-- Pilih RAB --"] + list(rab_map.keys()))
+                if sel_rab != "-- Pilih RAB --" and st.button("📂 Buka Arsip RAB Terpilih", use_container_width=True):
+                    raw_j = rab_map[sel_rab].get("PAYLOAD_JSON", "")
+                    if raw_j:
+                        load_rab_into_state(json.loads(raw_j))
+                        switch_menu(MENU_RAB)
+                st.dataframe(pd.DataFrame(rab_rows).drop(columns=["PAYLOAD_JSON"], errors="ignore"), use_container_width=True, hide_index=True)
+            else:
+                st.info("Belum ada arsip RAB tersimpan.")
+
+        with db_c2:
+            st.markdown("##### 📝 Muat / Edit Ulang Arsip LPJ")
+            if lpj_rows:
+                lpj_map = {f"{r.get('ID_LPJ')} | {r.get('TEMPAT_ACARA')} ({fmt_rp_cell(r.get('TOTAL_DANA', 0), False)})": r for r in lpj_rows}
+                sel_lpj = st.selectbox("Pilih Arsip LPJ:", options=["-- Pilih LPJ --"] + list(lpj_map.keys()))
+                if sel_lpj != "-- Pilih LPJ --" and st.button("📂 Buka Arsip LPJ Terpilih", use_container_width=True):
+                    raw_j = lpj_map[sel_lpj].get("PAYLOAD_JSON", "")
+                    if raw_j:
+                        load_lpj_into_state(json.loads(raw_j))
+                        switch_menu(MENU_LPJ)
+                st.dataframe(pd.DataFrame(lpj_rows).drop(columns=["PAYLOAD_JSON"], errors="ignore"), use_container_width=True, hide_index=True)
+            else:
+                st.info("Belum ada arsip LPJ tersimpan.")
+
+        st.markdown("##### 📊 Tabel Gabungan `REKAP_ITEM_DANA` (Seluruh Baris Item RAB & LPJ)")
+        if rk_rows:
+            st.dataframe(pd.DataFrame(rk_rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Belum ada rincian item tersimpan di REKAP_ITEM_DANA.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
