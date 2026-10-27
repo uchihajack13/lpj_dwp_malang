@@ -1,6 +1,6 @@
 # ==============================================================================
-# APLIKASI ENTERPRISE GENERATOR RAB & LPJ DWP KPPBC TMC MALANG (V8.0 PRODUCTION)
-# Arsitektur: "Fily" Modern Sidebar Admin UI + Mail Merge Engine (<<TAG>>)
+# APLIKASI ENTERPRISE GENERATOR RAB & LPJ DWP KPPBC TMC MALANG (V9.0 PRODUCTION)
+# Arsitektur: Clean Native Container UI + True Relational CRUD + Mail Merge Engine
 #             + Split-Alignment Accounting (Rp Rata Kiri & Angka Rata Kanan)
 #             + Smart Tiered Iuran DWP + Triple-Layer Auto-History + Google Sheets
 # Aturan Koding Mutlak: 0 Backslash Character di Seluruh Baris Kode Python
@@ -35,11 +35,11 @@ except Exception:
 
 
 # ==============================================================================
-# BAGIAN 1: KONSTANTA, ASET BAWAAN & KONFIGURASI HALAMAN V8.0
+# BAGIAN 1: KONSTANTA, ASET BAWAAN & KONFIGURASI HALAMAN V9.0
 # ==============================================================================
 
 st.set_page_config(
-    page_title="DWP BC Malang — RAB & LPJ Suite V8.0 (Mail Merge & Auto-History)",
+    page_title="DWP BC Malang — RAB & LPJ Suite V9.0",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -144,9 +144,10 @@ PRESET_RAB_JEMBER = {
     ],
 }
 
+# PERBAIKAN MUTLAK V9.0: LPJ Blitar dan RAB Jember adalah 2 contoh kegiatan berbeda & TIDAK saling terkait!
 PRESET_LPJ_BLITAR_2026 = {
     "id_lpj": "LPJ-20260813-BLITAR",
-    "id_rab_ref": "RAB-2026-JEMBER",
+    "id_rab_ref": "",
     "tgl_laporan": date(2026, 8, 13),
     "nama_kegiatan": "Pertemuan Rutin Paguyuban Dharma Wanita Persatuan DJBC di lingkungan Kanwil DJBC Jawa Timur II",
     "tema_kegiatan": "Kebersamaan dalam Keceriaan, Bersinergi dalam Kebahagiaan",
@@ -187,16 +188,17 @@ PRESET_LPJ_BLITAR_2026 = {
 SEED_HISTORY_RAB_JEMBER = dict(PRESET_RAB_JEMBER)
 SEED_HISTORY_LPJ_BLITAR_2026 = dict(PRESET_LPJ_BLITAR_2026)
 
-MENU_DASHBOARD = "🏠 Dashboard Utama"
-MENU_RAB = "📋 1. Susun RAB"
-MENU_LPJ = "📝 2. Buat LPJ"
-MENU_PREVIEW = "🖨️ 3. Preview & PDF"
-MENU_CLOUD = "🗄️ 4. History & Data"
-ALL_MENUS = [MENU_DASHBOARD, MENU_RAB, MENU_LPJ, MENU_PREVIEW, MENU_CLOUD]
+# 5 Menu Navigasi Sidebar Jernih & Terfokus V9.0
+MENU_RAB = "📋 1. Buat / Edit RAB"
+MENU_LPJ = "📝 2. Buat / Edit LPJ"
+MENU_PREVIEW = "🖨️ 3. Preview & Download"
+MENU_CLOUD = "🗄️ 4. Riwayat & Hapus Data"
+MENU_KOMPARASI = "📊 5. Komparasi RAB vs LPJ"
+ALL_MENUS = [MENU_RAB, MENU_LPJ, MENU_PREVIEW, MENU_CLOUD, MENU_KOMPARASI]
 
 
 # ==============================================================================
-# BAGIAN 2: HELPER FUNGSI BAHASA, AKUNTANSI SEJAJAR & RUMUS IURAN DWP V8.0
+# BAGIAN 2: HELPER FUNGSI BAHASA, AKUNTANSI SEJAJAR & RUMUS IURAN DWP V9.0
 # ==============================================================================
 
 def parse_num(val) -> int:
@@ -252,7 +254,7 @@ def fmt_ribuan(val) -> str:
 
 def fmt_nominal_only(val, is_dash_if_zero: bool = True) -> str:
     """
-    PENYEMPURNAAN 1: Mengembalikan hanya angka titik ribuan ("450.000", "2.094.000")
+    Mengembalikan hanya angka titik ribuan ("450.000", "2.094.000")
     atau tanda strip ("-" jika val <= 0 dan is_dash_if_zero=True, atau "0" jika False).
     """
     n = parse_num(val)
@@ -268,7 +270,7 @@ def fmt_rp_cell(val, is_dash_if_zero: bool = True) -> str:
 
 def fmt_rp_html_split(val, is_dash_if_zero: bool = True, bold: bool = False) -> str:
     """
-    PENYEMPURNAAN 1 (HTML Live Preview): Merender flex container dengan Rp rata kiri
+    Merender flex container di Live Preview HTML A4 dengan Rp rata kiri
     dan nominal/strip rata kanan agar 100% identik dengan cetakan Word/PDF.
     """
     fw = "700" if bold else "400"
@@ -282,7 +284,7 @@ def fmt_rp_html_split(val, is_dash_if_zero: bool = True, bold: bool = False) -> 
 
 def calc_tiered_iuran_dwp(jml: int) -> int:
     """
-    PENYEMPURNAAN 2: Rumus baku Iuran DWP Gabungan Kanwil DJBC Jatim II:
+    Rumus baku Iuran DWP Gabungan Kanwil DJBC Jatim II:
     - Paket dasar 5 orang pertama = Rp 300.000
     - Setiap tambahan orang di atas 5 orang = Rp 75.000 / orang
     - jml <= 0 -> 0; jml <= 5 -> 300000; jml > 5 -> 300000 + ((jml - 5) * 75000)
@@ -380,10 +382,11 @@ def format_hari_tanggal_indo(dt) -> str:
     return f"{nama_hari[dt.weekday()]}, {dt.day} {nama_bulan[dt.month]} {dt.year}"
 
 
-def normalize_items_df(records, default_ket: str = "", prev_records=None) -> pd.DataFrame:
+def normalize_items_df(records, default_ket: str = "", prev_records=None, include_hapus_col: bool = False) -> pd.DataFrame:
     """
-    PENYEMPURNAAN 2: Menerapkan Logika 4-Mode (termasuk Mode 2A Rumus Pintar Iuran DWP Gabungan)
-    secara instan di dalam sel tabel.
+    Menerapkan Logika 4-Mode (termasuk Mode 2A Rumus Pintar Iuran DWP Gabungan).
+    Secara default tidak menyertakan kolom HAPUS? agar output cetakan Word/PDF/Database bersih,
+    dan hanya menyertakan kolom HAPUS? bila include_hapus_col=True untuk UI st.data_editor.
     """
     if isinstance(records, pd.DataFrame):
         raw_list = records.to_dict(orient="records")
@@ -411,6 +414,7 @@ def normalize_items_df(records, default_ket: str = "", prev_records=None) -> pd.
         h_tot_in = max(0, parse_num(item.get("HARGA TOTAL", item.get("harga_total", 0))))
         ket_raw = item.get("KETERANGAN", item.get("keterangan", default_ket))
         ket = str(ket_raw if ket_raw is not None else default_ket).strip()
+        hapus_flag = bool(item.get("HAPUS?", False))
 
         prev_item = prev_list[idx_pos] if idx_pos < len(prev_list) else None
         prev_jml = max(0, parse_num(prev_item.get("JUMLAH", prev_item.get("jumlah", jml)))) if prev_item else None
@@ -420,11 +424,9 @@ def normalize_items_df(records, default_ket: str = "", prev_records=None) -> pd.
         is_iuran_dwp = "iuran dwp" in keb_lower
 
         if h_sat > 0:
-            # Mode 1: Barang Biasa (HARGA SATUAN > 0)
             qty_calc = jml if jml > 0 else 1
             h_tot = qty_calc * h_sat
         elif is_iuran_dwp and h_sat == 0:
-            # Mode 2A: Baris Iuran DWP Gabungan (HARGA SATUAN == 0)
             jml_changed = (prev_jml is not None and jml != prev_jml)
             htot_manually_overridden = (
                 prev_htot is not None
@@ -439,38 +441,42 @@ def normalize_items_df(records, default_ket: str = "", prev_records=None) -> pd.
             else:
                 h_tot = h_tot_in
         elif h_tot_in > 0:
-            # Mode 2B: Borongan / Lump Sum Lainnya (HARGA SATUAN == 0 dan HARGA TOTAL > 0)
             h_tot = h_tot_in
         else:
-            # Mode 3: Gratis / Fasilitas Kantor (HARGA SATUAN == 0 dan HARGA TOTAL == 0)
             h_tot = 0
 
-        rows.append({
+        row_dict = {
             "NO": idx_counter,
             "KEBUTUHAN KEGIATAN": kebutuhan,
             "JUMLAH": jml,
             "HARGA SATUAN": h_sat,
             "HARGA TOTAL": h_tot,
             "KETERANGAN": ket,
-        })
+        }
+        if include_hapus_col:
+            row_dict["HAPUS?"] = hapus_flag
+        rows.append(row_dict)
         idx_counter += 1
 
     if not rows:
-        rows.append({
+        empty_row = {
             "NO": 1,
             "KEBUTUHAN KEGIATAN": "Kebutuhan Kegiatan",
             "JUMLAH": 1,
             "HARGA SATUAN": 0,
             "HARGA TOTAL": 0,
             "KETERANGAN": default_ket,
-        })
+        }
+        if include_hapus_col:
+            empty_row["HAPUS?"] = False
+        rows.append(empty_row)
 
     return pd.DataFrame(rows)
 
 
 def sync_iuran_note_rab(catatan_text: str, df_items: pd.DataFrame) -> str:
     """
-    PENYEMPURNAAN 2: Otomatis memperbarui kalimat rincian di *Note : RAB menjadi:
+    Otomatis memperbarui kalimat rincian di *Note : RAB menjadi:
     'Iuran DWP Gabungan untuk 5 orang Rp 300.000 + ({jml - 5} orang x Rp 75.000)'
     setiap kali jumlah orang pada baris Iuran DWP berubah.
     """
@@ -509,15 +515,19 @@ def sync_iuran_note_rab(catatan_text: str, df_items: pd.DataFrame) -> str:
     return NL.join(out_lines)
 
 
-def sync_data_editor_live(edited_raw: pd.DataFrame, state_df_key: str, ver_key: str, default_ket: str = "", is_rab: bool = False) -> pd.DataFrame:
+def sync_data_editor_live(edited_raw: pd.DataFrame, state_df_key: str, ver_key: str, default_ket: str = "", is_rab: bool = False) -> tuple:
     """
-    PENYEMPURNAAN 2: Membandingkan dataframe hasil editan dengan state sebelumnya (prev_records).
-    Begitu terdeteksi HARGA TOTAL hasil kalkulasi berbeda dengan tampilan mentah di tabel,
-    langsung simpan ke st.session_state, naikkan counter versi editor (rab_editor_ver / lpj_editor_ver),
-    update *Note RAB jika relevan, dan panggil st.rerun() agar angka baru langsung muncul di sel tabel!
+    Membandingkan dataframe hasil editan dengan state sebelumnya (prev_records).
+    Mengembalikan tuple (df_calc_clean, checked_indices) di mana checked_indices adalah
+    daftar baris yang dicentang pada kolom 'HAPUS?'.
     """
     prev_df = st.session_state.get(state_df_key, pd.DataFrame())
-    df_calc = normalize_items_df(edited_raw, default_ket=default_ket, prev_records=prev_df)
+    df_with_hapus = normalize_items_df(edited_raw, default_ket=default_ket, prev_records=prev_df, include_hapus_col=True)
+    df_calc = df_with_hapus.drop(columns=["HAPUS?"], errors="ignore").copy()
+
+    checked_indices = []
+    if "HAPUS?" in df_with_hapus.columns:
+        checked_indices = [int(i) for i, val in enumerate(df_with_hapus["HAPUS?"].tolist()) if bool(val)]
 
     raw_records = edited_raw.to_dict(orient="records") if isinstance(edited_raw, pd.DataFrame) else []
     calc_records = df_calc.to_dict(orient="records")
@@ -547,7 +557,30 @@ def sync_data_editor_live(edited_raw: pd.DataFrame, state_df_key: str, ver_key: 
         st.session_state[ver_key] = int(st.session_state.get(ver_key, 0)) + 1
         st.rerun()
 
-    return df_calc
+    return df_calc, checked_indices
+
+
+def delete_rows_from_items_df(df_items: pd.DataFrame, indices_to_drop: list, default_ket: str = "") -> pd.DataFrame:
+    """Menghapus baris berdasarkan daftar indeks (0-based) dan mengurutkan ulang nomor NO."""
+    if df_items is None or df_items.empty:
+        return normalize_items_df([], default_ket=default_ket)
+    drop_set = set(indices_to_drop)
+    remaining = [row for idx, row in enumerate(df_items.to_dict(orient="records")) if idx not in drop_set]
+    return normalize_items_df(remaining, default_ket=default_ket)
+
+
+def append_blank_row_to_items_df(df_items: pd.DataFrame, default_ket: str = "") -> pd.DataFrame:
+    """Menambahkan 1 baris baru di bawah tabel rincian dana."""
+    cur_list = df_items.to_dict(orient="records") if isinstance(df_items, pd.DataFrame) and not df_items.empty else []
+    cur_list.append({
+        "NO": len(cur_list) + 1,
+        "KEBUTUHAN KEGIATAN": f"Item Kegiatan {len(cur_list) + 1}",
+        "JUMLAH": 1,
+        "HARGA SATUAN": 0,
+        "HARGA TOTAL": 0,
+        "KETERANGAN": default_ket,
+    })
+    return normalize_items_df(cur_list, default_ket=default_ket)
 
 
 def detect_location_mismatch(lokasi_judul: str, df_items: pd.DataFrame) -> list:
@@ -593,7 +626,7 @@ def replace_city_across_payload(doc_mode: str, payload: dict, new_city: str) -> 
         return res
 
     if doc_mode == "RAB":
-        cloned["id_rab"] = f"RAB-{datetime.now().strftime('%Y%m%d')}-{target_city.upper()}"
+        cloned["id_rab"] = f"RAB-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{target_city.upper()}"
         cloned["lokasi_acara_rab"] = f"(DI KPPBC TMP C {target_city.upper()})"
         cloned["status_konversi"] = "BELUM DIKONVERSI"
         new_items = []
@@ -603,9 +636,18 @@ def replace_city_across_payload(doc_mode: str, payload: dict, new_city: str) -> 
             new_items.append(it_copy)
         cloned["items_rab"] = new_items
     else:
-        cloned["id_lpj"] = f"LPJ-{datetime.now().strftime('%Y%m%d')}-{target_city.upper()}"
+        cloned["id_lpj"] = f"LPJ-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{target_city.upper()}"
         cloned["tempat_acara"] = f"KPPBC Tipe Madya Pabean C {target_city}"
-        cloned["rangkaian_kegiatan"] = _swap_city(cloned.get("rangkaian_kegiatan", ""), upper_mode=False)
+        if target_city.lower() != "blitar" and any(w in str(cloned.get("rangkaian_kegiatan", "")).lower() for w in ["nurtjahjo", "bung karno", "blitar"]):
+            cloned["rangkaian_kegiatan"] = NL.join([
+                f"Pembukaan acara dan sambutan pada kegiatan di KPPBC Tipe Madya Pabean C {target_city}.",
+                "Pelaksanaan kegiatan inti pertemuan rutin dan ramah tamah anggota Dharma Wanita Persatuan.",
+                "Penutupan acara dan dokumentasi bersama.",
+            ])
+            cloned["tema_kegiatan"] = ""
+            cloned["konteks_hut"] = ""
+        else:
+            cloned["rangkaian_kegiatan"] = _swap_city(cloned.get("rangkaian_kegiatan", ""), upper_mode=False)
         new_items = []
         for it in cloned.get("items_dana", []):
             it_copy = dict(it)
@@ -781,10 +823,7 @@ def build_paragraf_pembuka(nama_kegiatan: str, tema_kegiatan: str, konteks_hut: 
 
 
 def build_mail_merge_dictionary(doc_mode: str, payload: dict) -> list:
-    """
-    PENYEMPURNAAN 4: Memetakan seluruh input form ke dalam tag Mail Merge (<<TAG>>)
-    standar tata naskah DWP KPPBC TMC Malang (ala Sistem BA Segel).
-    """
+    """Memetakan seluruh input form ke dalam tag Mail Merge (<<TAG>>) standar tata naskah DWP KPPBC TMC Malang."""
     if doc_mode == "RAB":
         df_items = normalize_items_df(payload.get("items_rab", []), payload.get("ket_tabel_rab", ""))
         total_rab = int(df_items["HARGA TOTAL"].sum()) if not df_items.empty else 0
@@ -817,7 +856,7 @@ def build_mail_merge_dictionary(doc_mode: str, payload: dict) -> list:
 
     return [
         {"TAG MAIL MERGE": "<<ID_LPJ>>", "NILAI / ISI DOKUMEN": str(payload.get("id_lpj", "LPJ-20260813-BLITAR"))},
-        {"TAG MAIL MERGE": "<<ID_RAB_REFERENSI>>", "NILAI / ISI DOKUMEN": str(payload.get("id_rab_ref", "-"))},
+        {"TAG MAIL MERGE": "<<ID_RAB_REFERENSI>>", "NILAI / ISI DOKUMEN": str(payload.get("id_rab_ref", "-") or "-")},
         {"TAG MAIL MERGE": "<<TGL_SURAT_LPJ>>", "NILAI / ISI DOKUMEN": tgl_surat},
         {"TAG MAIL MERGE": "<<PARAGRAF_PEMBUKA_ADAPTIF>>", "NILAI / ISI DOKUMEN": pembuka},
         {"TAG MAIL MERGE": "<<HARI_TGL_ACARA>>", "NILAI / ISI DOKUMEN": tgl_acara},
@@ -838,7 +877,7 @@ def build_mail_merge_dictionary(doc_mode: str, payload: dict) -> list:
 
 
 # ==============================================================================
-# BAGIAN 3: TRIPLE-LAYER AUTO-HISTORY (JSON LOKAL + SESSION + GOOGLE SHEETS)
+# BAGIAN 3: TRIPLE-LAYER AUTO-HISTORY & FULL CRUD (SIMPAN, HAPUS & ANTI-DOBEL)
 # ==============================================================================
 
 def _make_rab_row_and_rekap(rab_payload: dict, waktu_simpan: str = None) -> tuple:
@@ -944,9 +983,9 @@ def _make_lpj_row_and_rekap(lpj_payload: dict, waktu_simpan: str = None) -> tupl
 
 def load_persistent_local_history() -> dict:
     """
-    PENYEMPURNAAN 3: Membaca file JSON lokal permanen `database_riwayat_dwp_malang.json`
+    Membaca file JSON lokal permanen `database_riwayat_dwp_malang.json`
     dan memastikan SEED_HISTORY_RAB_JEMBER (Rp 2.094.000) serta SEED_HISTORY_LPJ_BLITAR_2026
-    (Rp 5.075.000) selalu tercatat sebagai Data Riwayat Bawaan.
+    (Rp 5.075.000, id_rab_ref="") tercatat sebagai Data Riwayat Bawaan.
     """
     seed_rab_row, seed_rab_rk = _make_rab_row_and_rekap(dict(SEED_HISTORY_RAB_JEMBER), waktu_simpan="2026-08-01 08:00:00")
     seed_lpj_row, seed_lpj_rk = _make_lpj_row_and_rekap(dict(SEED_HISTORY_LPJ_BLITAR_2026), waktu_simpan="2026-08-13 09:00:00")
@@ -962,6 +1001,17 @@ def load_persistent_local_history() -> dict:
                     data["rekap_rows"] = loaded.get("rekap_rows", [])
         except Exception:
             pass
+
+    # Pastikan LPJ Blitar bawaan tidak pernah punya id_rab_ref ke RAB Jember
+    for r_lpj in data["lpj_rows"]:
+        if r_lpj.get("ID_LPJ") == "LPJ-20260813-BLITAR" and r_lpj.get("ID_RAB_REF") == "RAB-2026-JEMBER":
+            r_lpj["ID_RAB_REF"] = ""
+            try:
+                p_obj = json.loads(r_lpj.get("PAYLOAD_JSON", "{}"))
+                p_obj["id_rab_ref"] = ""
+                r_lpj["PAYLOAD_JSON"] = json.dumps(p_obj, ensure_ascii=False)
+            except Exception:
+                pass
 
     rab_ids = {r.get("ID_RAB") for r in data["rab_rows"]}
     if seed_rab_row["ID_RAB"] not in rab_ids:
@@ -983,10 +1033,7 @@ def load_persistent_local_history() -> dict:
 
 
 def save_persistent_local_history(rab_rows: list = None, lpj_rows: list = None, rekap_rows: list = None) -> bool:
-    """
-    PENYEMPURNAAN 3: Menyimpan daftar riwayat RAB, LPJ, dan Rekap Item Dana ke file JSON lokal
-    `database_riwayat_dwp_malang.json` agar permanen walaupun tanpa koneksi internet/Cloud.
-    """
+    """Menyimpan daftar riwayat RAB, LPJ, dan Rekap Item Dana ke file JSON lokal `database_riwayat_dwp_malang.json`."""
     r_rows = rab_rows if rab_rows is not None else st.session_state.get("local_db_rab", [])
     l_rows = lpj_rows if lpj_rows is not None else st.session_state.get("local_db_lpj", [])
     rk_rows = rekap_rows if rekap_rows is not None else st.session_state.get("local_rekap_dana", [])
@@ -1006,10 +1053,7 @@ def save_persistent_local_history(rab_rows: list = None, lpj_rows: list = None, 
 
 
 def get_active_spreadsheet_id() -> str:
-    """
-    PENYEMPURNAAN 5: Otomatis membaca st.secrets["database"]["spreadsheet_id"] jika tersedia,
-    atau fallback ke DEFAULT_SPREADSHEET_ID.
-    """
+    """Otomatis membaca st.secrets['database']['spreadsheet_id'] jika tersedia, atau fallback ke DEFAULT_SPREADSHEET_ID."""
     custom_id = st.session_state.get("cfg_sheet_id", "").strip()
     if custom_id:
         return custom_id
@@ -1025,12 +1069,7 @@ def get_active_spreadsheet_id() -> str:
 
 @st.cache_resource(show_spinner=False)
 def get_gspread_client(creds_json_str: str = ""):
-    """
-    PENYEMPURNAAN 5: Membuka koneksi gspread dengan dukungan otomatis:
-    1) Parameter creds_json_str (jika di-upload),
-    2) st.secrets["gcp_service_account"] (untuk bot-surat-tugas@sonorous-hangar-511502-b9.iam.gserviceaccount.com),
-    3) File lokal `.gcp_service_account_dwp.json` jika pernah disimpan.
-    """
+    """Membuka koneksi gspread dengan dukungan otomatis dari upload, st.secrets, atau file lokal `.gcp_service_account_dwp.json`."""
     if not HAS_GSPREAD:
         return None, "Library gspread belum terpasang di environment ini."
 
@@ -1061,7 +1100,7 @@ def get_gspread_client(creds_json_str: str = ""):
             creds_dict = None
 
     if not creds_dict:
-        return None, "History Lokal Permanen Aktif (JSON) — Cloud menunggu Service Account"
+        return None, "Riwayat Lokal Permanen Aktif (JSON)"
 
     try:
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
@@ -1145,10 +1184,11 @@ def fetch_sheet_bundle_cached(spreadsheet_id: str, creds_json_str: str = "") -> 
 
 def get_sheet_bundle(spreadsheet_id: str, creds_json_str: str = "") -> dict:
     """
-    PENYEMPURNAAN 3: Menggabungkan (merge) History dari Lapis 1 (st.session_state),
+    Menggabungkan (merge) History dari Lapis 1 (st.session_state),
     Lapis 2 (File JSON Lokal `database_riwayat_dwp_malang.json`), dan Lapis 3 (Google Sheets Cloud)
-    sehingga dokumen yang baru diinput SELALU muncul di daftar History!
+    serta menghormati daftar ID yang baru saja dihapus (`deleted_doc_ids`).
     """
+    deleted_ids = set(st.session_state.get("deleted_doc_ids", []))
     local_file_data = load_persistent_local_history()
     sess_rab = st.session_state.get("local_db_rab", [])
     sess_lpj = st.session_state.get("local_db_lpj", [])
@@ -1161,7 +1201,7 @@ def get_sheet_bundle(spreadsheet_id: str, creds_json_str: str = "") -> dict:
     for source_list in [sess_rab, local_file_data.get("rab_rows", []), res.get("rab_rows", [])]:
         for r in source_list:
             rid = r.get("ID_RAB")
-            if rid and rid not in seen_rab:
+            if rid and rid not in seen_rab and rid not in deleted_ids:
                 seen_rab.add(rid)
                 merged_rab.append(r)
 
@@ -1170,7 +1210,9 @@ def get_sheet_bundle(spreadsheet_id: str, creds_json_str: str = "") -> dict:
     for source_list in [sess_lpj, local_file_data.get("lpj_rows", []), res.get("lpj_rows", [])]:
         for r in source_list:
             lid = r.get("ID_LPJ")
-            if lid and lid not in seen_lpj:
+            if lid and lid not in seen_lpj and lid not in deleted_ids:
+                if lid == "LPJ-20260813-BLITAR" and r.get("ID_RAB_REF") == "RAB-2026-JEMBER":
+                    r["ID_RAB_REF"] = ""
                 seen_lpj.add(lid)
                 merged_lpj.append(r)
 
@@ -1178,8 +1220,9 @@ def get_sheet_bundle(spreadsheet_id: str, creds_json_str: str = "") -> dict:
     seen_rk = set()
     for source_list in [sess_rk, local_file_data.get("rekap_rows", []), res.get("rekap_rows", [])]:
         for r in source_list:
-            key_rk = (r.get("ID_DOKUMEN"), str(r.get("NO_ITEM")))
-            if key_rk not in seen_rk:
+            doc_id = r.get("ID_DOKUMEN")
+            key_rk = (doc_id, str(r.get("NO_ITEM")))
+            if doc_id and doc_id not in deleted_ids and key_rk not in seen_rk:
                 seen_rk.add(key_rk)
                 merged_rk.append(r)
 
@@ -1189,7 +1232,7 @@ def get_sheet_bundle(spreadsheet_id: str, creds_json_str: str = "") -> dict:
 
     return {
         "ok": bool(res.get("ok")),
-        "msg": res.get("msg", "History Lokal Permanen Aktif"),
+        "msg": res.get("msg", "Riwayat Lokal Permanen Aktif"),
         "rab_rows": merged_rab,
         "lpj_rows": merged_lpj,
         "rekap_rows": merged_rk,
@@ -1197,12 +1240,14 @@ def get_sheet_bundle(spreadsheet_id: str, creds_json_str: str = "") -> dict:
 
 
 def save_rab_to_storage(rab_payload: dict, spreadsheet_id: str = "", creds_json_str: str = "") -> tuple:
-    """
-    PENYEMPURNAAN 3: Menyimpan dokumen RAB ke Lapis 1 (session_state), Lapis 2 (JSON Lokal Permanen),
-    dan Lapis 3 (Google Sheets DATABASE_RAB & REKAP_ITEM_DANA).
-    """
+    """Menyimpan dokumen RAB ke Lapis 1 (session_state), Lapis 2 (JSON Lokal Permanen), dan Lapis 3 (Google Sheets)."""
     rab_row_dict, rekap_dicts = _make_rab_row_and_rekap(rab_payload)
     id_rab = rab_row_dict["ID_RAB"]
+
+    deleted_ids = set(st.session_state.get("deleted_doc_ids", []))
+    if id_rab in deleted_ids:
+        deleted_ids.remove(id_rab)
+        st.session_state["deleted_doc_ids"] = list(deleted_ids)
 
     local_rab = [row for row in st.session_state.get("local_db_rab", []) if row.get("ID_RAB") != id_rab]
     local_rab.insert(0, rab_row_dict)
@@ -1221,7 +1266,7 @@ def save_rab_to_storage(rab_payload: dict, spreadsheet_id: str = "", creds_json_
     target_sheet_id = spreadsheet_id or get_active_spreadsheet_id()
     client, status_msg = get_gspread_client(creds_json_str)
     if client is None:
-        return True, f"RAB ({id_rab}) tersimpan di History Permanen ({LOCAL_HISTORY_JSON_FILE}). {status_msg}"
+        return True, f"RAB ({id_rab}) berhasil disimpan ke Riwayat Permanen. ({status_msg})"
 
     try:
         sh = client.open_by_key(target_sheet_id)
@@ -1266,18 +1311,20 @@ def save_rab_to_storage(rab_payload: dict, spreadsheet_id: str = "", creds_json_
         )
 
         fetch_sheet_bundle_cached.clear()
-        return True, f"RAB ({id_rab}) berhasil disimpan ke History Lokal & Google Sheets ({SHEET_DB_RAB})!"
+        return True, f"RAB ({id_rab}) berhasil disimpan ke Riwayat Lokal & Google Sheets!"
     except Exception as e:
-        return True, f"RAB ({id_rab}) tersimpan di History Lokal Permanen, namun gagal sinkron ke Cloud: {e}"
+        return True, f"RAB ({id_rab}) tersimpan di Riwayat Lokal, namun gagal sinkron ke Cloud: {e}"
 
 
 def save_lpj_to_storage(lpj_payload: dict, spreadsheet_id: str = "", creds_json_str: str = "") -> tuple:
-    """
-    PENYEMPURNAAN 3: Menyimpan dokumen LPJ ke Lapis 1 (session_state), Lapis 2 (JSON Lokal Permanen),
-    dan Lapis 3 (Google Sheets DATABASE_LPJ & REKAP_ITEM_DANA).
-    """
+    """Menyimpan dokumen LPJ ke Lapis 1 (session_state), Lapis 2 (JSON Lokal Permanen), dan Lapis 3 (Google Sheets)."""
     lpj_row_dict, rekap_dicts = _make_lpj_row_and_rekap(lpj_payload)
     id_lpj = lpj_row_dict["ID_LPJ"]
+
+    deleted_ids = set(st.session_state.get("deleted_doc_ids", []))
+    if id_lpj in deleted_ids:
+        deleted_ids.remove(id_lpj)
+        st.session_state["deleted_doc_ids"] = list(deleted_ids)
 
     local_lpj = [row for row in st.session_state.get("local_db_lpj", []) if row.get("ID_LPJ") != id_lpj]
     local_lpj.insert(0, lpj_row_dict)
@@ -1296,7 +1343,7 @@ def save_lpj_to_storage(lpj_payload: dict, spreadsheet_id: str = "", creds_json_
     target_sheet_id = spreadsheet_id or get_active_spreadsheet_id()
     client, status_msg = get_gspread_client(creds_json_str)
     if client is None:
-        return True, f"LPJ ({id_lpj}) tersimpan di History Permanen ({LOCAL_HISTORY_JSON_FILE}). {status_msg}"
+        return True, f"LPJ ({id_lpj}) berhasil disimpan ke Riwayat Permanen. ({status_msg})"
 
     try:
         sh = client.open_by_key(target_sheet_id)
@@ -1341,13 +1388,157 @@ def save_lpj_to_storage(lpj_payload: dict, spreadsheet_id: str = "", creds_json_
         )
 
         fetch_sheet_bundle_cached.clear()
-        return True, f"LPJ ({id_lpj}) berhasil disimpan ke History Lokal & Google Sheets ({SHEET_DB_LPJ})!"
+        return True, f"LPJ ({id_lpj}) berhasil disimpan ke Riwayat Lokal & Google Sheets!"
     except Exception as e:
-        return True, f"LPJ ({id_lpj}) tersimpan di History Lokal Permanen, namun gagal sinkron ke Cloud: {e}"
+        return True, f"LPJ ({id_lpj}) tersimpan di Riwayat Lokal, namun gagal sinkron ke Cloud: {e}"
+
+
+def delete_document_from_storage(doc_mode: str, doc_id: str, spreadsheet_id: str = "", creds_json_str: str = "") -> tuple:
+    """
+    PERBAIKAN MUTLAK V9.0 (Full CRUD): Menghapus dokumen RAB atau LPJ dari:
+    1) st.session_state (local_db_rab / local_db_lpj & local_rekap_dana)
+    2) File JSON lokal `database_riwayat_dwp_malang.json`
+    3) Google Sheets (`DATABASE_RAB` / `DATABASE_LPJ` & `REKAP_ITEM_DANA`)
+    """
+    clean_id = (doc_id or "").strip()
+    if not clean_id:
+        return False, "ID Dokumen yang ingin dihapus kosong."
+
+    deleted_ids = set(st.session_state.get("deleted_doc_ids", []))
+    deleted_ids.add(clean_id)
+    st.session_state["deleted_doc_ids"] = list(deleted_ids)
+
+    if doc_mode == "RAB":
+        local_rab = [r for r in st.session_state.get("local_db_rab", []) if r.get("ID_RAB") != clean_id]
+        st.session_state["local_db_rab"] = local_rab
+    else:
+        local_lpj = [r for r in st.session_state.get("local_db_lpj", []) if r.get("ID_LPJ") != clean_id]
+        st.session_state["local_db_lpj"] = local_lpj
+
+    local_rk = [r for r in st.session_state.get("local_rekap_dana", []) if r.get("ID_DOKUMEN") != clean_id]
+    st.session_state["local_rekap_dana"] = local_rk
+
+    save_persistent_local_history(
+        rab_rows=st.session_state.get("local_db_rab", []),
+        lpj_rows=st.session_state.get("local_db_lpj", []),
+        rekap_rows=local_rk,
+    )
+
+    target_sheet_id = spreadsheet_id or get_active_spreadsheet_id()
+    client, _ = get_gspread_client(creds_json_str)
+    if client is None:
+        return True, f"Dokumen {doc_mode} ({clean_id}) berhasil dihapus dari Riwayat Lokal."
+
+    try:
+        sh = client.open_by_key(target_sheet_id)
+        ws_rab, ws_lpj, ws_rk = ensure_worksheets_ready(sh)
+
+        if doc_mode == "RAB":
+            existing_vals = ws_rab.get_all_values()
+            new_matrix = [COLS_DB_RAB]
+            for r in existing_vals[1:]:
+                if any(str(c).strip() for c in r) and (len(r) == 0 or r[0] != clean_id):
+                    padded = list(r) + [""] * max(0, len(COLS_DB_RAB) - len(r))
+                    new_matrix.append(padded[:len(COLS_DB_RAB)])
+            ws_rab.clear()
+            ws_rab.batch_update([{"range": f"A1:J{len(new_matrix)}", "values": new_matrix}], value_input_option="USER_ENTERED")
+        else:
+            existing_vals = ws_lpj.get_all_values()
+            new_matrix = [COLS_DB_LPJ]
+            for r in existing_vals[1:]:
+                if any(str(c).strip() for c in r) and (len(r) == 0 or r[0] != clean_id):
+                    padded = list(r) + [""] * max(0, len(COLS_DB_LPJ) - len(r))
+                    new_matrix.append(padded[:len(COLS_DB_LPJ)])
+            ws_lpj.clear()
+            ws_lpj.batch_update([{"range": f"A1:O{len(new_matrix)}", "values": new_matrix}], value_input_option="USER_ENTERED")
+
+        existing_rk = ws_rk.get_all_values()
+        new_rk = [COLS_REKAP_DANA]
+        for r in existing_rk[1:]:
+            if any(str(c).strip() for c in r) and (len(r) == 0 or r[0] != clean_id):
+                padded = list(r) + [""] * max(0, len(COLS_REKAP_DANA) - len(r))
+                new_rk.append(padded[:len(COLS_REKAP_DANA)])
+        ws_rk.clear()
+        ws_rk.batch_update([{"range": f"A1:J{len(new_rk)}", "values": new_rk}], value_input_option="USER_ENTERED")
+
+        fetch_sheet_bundle_cached.clear()
+        return True, f"Dokumen {doc_mode} ({clean_id}) berhasil dihapus dari Riwayat Lokal & Google Sheets!"
+    except Exception as e:
+        return True, f"Dokumen {doc_mode} ({clean_id}) dihapus dari Lokal (Cloud warning: {e})"
+
+
+def delete_rab_from_storage(id_rab: str, spreadsheet_id: str = "", creds_json_str: str = "") -> tuple:
+    """Wrapper khusus untuk menghapus dokumen RAB berdasarkan ID_RAB."""
+    return delete_document_from_storage("RAB", id_rab, spreadsheet_id, creds_json_str)
+
+
+def delete_lpj_from_storage(id_lpj: str, spreadsheet_id: str = "", creds_json_str: str = "") -> tuple:
+    """Wrapper khusus untuk menghapus dokumen LPJ berdasarkan ID_LPJ."""
+    return delete_document_from_storage("LPJ", id_lpj, spreadsheet_id, creds_json_str)
+
+
+def deduplicate_history_storage(spreadsheet_id: str = "", creds_json_str: str = "") -> tuple:
+    """
+    PERBAIKAN MUTLAK V9.0: Menghapus dokumen dobel (yang memiliki Nama Kegiatan, Lokasi/Tempat,
+    dan Total Dana yang sama persis akibat klik simpan berulang kali), dengan menyisakan 1 dokumen terbaru.
+    """
+    rab_rows = st.session_state.get("local_db_rab", [])
+    lpj_rows = st.session_state.get("local_db_lpj", [])
+
+    removed_rab_ids = []
+    seen_rab_sig = set()
+    clean_rab = []
+    for r in rab_rows:
+        sig = (
+            str(r.get("NAMA_KEGIATAN", "")).strip().upper(),
+            str(r.get("LOKASI_ACARA", "")).strip().upper(),
+            parse_num(r.get("TOTAL_RAB", 0)),
+        )
+        if sig in seen_rab_sig:
+            removed_rab_ids.append(r.get("ID_RAB"))
+        else:
+            seen_rab_sig.add(sig)
+            clean_rab.append(r)
+
+    removed_lpj_ids = []
+    seen_lpj_sig = set()
+    clean_lpj = []
+    for r in lpj_rows:
+        sig = (
+            str(r.get("NAMA_KEGIATAN", "")).strip().upper(),
+            str(r.get("TEMPAT_ACARA", "")).strip().upper(),
+            parse_num(r.get("TOTAL_DANA", 0)),
+        )
+        if sig in seen_lpj_sig:
+            removed_lpj_ids.append(r.get("ID_LPJ"))
+        else:
+            seen_lpj_sig.add(sig)
+            clean_lpj.append(r)
+
+    kept_rab_ids = {r.get("ID_RAB") for r in clean_rab}
+    kept_lpj_ids = {r.get("ID_LPJ") for r in clean_lpj}
+    for rid in removed_rab_ids:
+        if rid not in kept_rab_ids:
+            delete_document_from_storage("RAB", rid, spreadsheet_id, creds_json_str)
+    for lid in removed_lpj_ids:
+        if lid not in kept_lpj_ids:
+            delete_document_from_storage("LPJ", lid, spreadsheet_id, creds_json_str)
+    st.session_state["local_db_rab"] = clean_rab
+    st.session_state["local_db_lpj"] = clean_lpj
+    save_persistent_local_history(
+        rab_rows=clean_rab,
+        lpj_rows=clean_lpj,
+        rekap_rows=st.session_state.get("local_rekap_dana", []),
+    )
+
+    total_removed = len(removed_rab_ids) + len(removed_lpj_ids)
+    if total_removed == 0:
+        return True, "Tidak ditemukan data dobel. Seluruh dokumen di Riwayat sudah unik!"
+    return True, f"Berhasil membersihkan {total_removed} dokumen dobel ({len(removed_rab_ids)} RAB & {len(removed_lpj_ids)} LPJ)!"
 
 
 # ==============================================================================
-# BAGIAN 4: ENGINE DOKUMEN WORD V8.0 (RP RATA KIRI SEJAJAR TOTAL & 2 PARAGRAF JABATAN)
+# BAGIAN 4: ENGINE DOKUMEN WORD V9.0 (RP RATA KIRI SEJAJAR TOTAL & 2 PARAGRAF JABATAN)
 # ==============================================================================
 
 def find_template_file(filename: str) -> str:
@@ -1549,12 +1740,10 @@ def _prepare_cloned_document():
 
 def _format_currency_cell_split(cell, val, col_width_cm: float, bold: bool = False, size_pt: float = 10.5, is_dash_if_zero: bool = True):
     """
-    PENYEMPURNAAN MUTLAK 1: Format Akuntansi Sejajar Lurus di Word (.docx)
+    Format Akuntansi Sejajar Lurus di Word (.docx):
     - Paragraf di dalam sel diatur Rata Kiri (WD_ALIGN_PARAGRAPH.LEFT) + <w:noWrap/>
     - Tambahkan 1 Tab-Stop Rata Kanan (WD_TAB_ALIGNMENT.RIGHT) tepat di lebar bersih sel: Cm(max(1.8, col_width_cm - 0.35))
     - Isi teks paragraf dengan "Rp" + TAB + fmt_nominal_only(val, is_dash_if_zero)
-    Hasilnya: Seluruh huruf "Rp" menempel rata kiri lurus vertikal dari baris 1 hingga baris TOTAL,
-    sedangkan seluruh angka nominal dan tanda "-" menempel rata kanan lurus sempurna!
     """
     cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     _set_cell_margins(cell, top=42, bottom=42, left=65, right=65)
@@ -1659,7 +1848,6 @@ def _build_6col_financial_table(doc, df_items: pd.DataFrame, merge_ket: bool, ke
         _format_cell_text(tr_row.cells[1], keb_str, align=WD_ALIGN_PARAGRAPH.LEFT, bold=False, size_pt=10.5)
         _format_cell_text(tr_row.cells[2], jml_str, align=WD_ALIGN_PARAGRAPH.CENTER, bold=False, size_pt=10.5)
 
-        # Kolom 3 (HARGA SATUAN) & Kolom 4 (HARGA TOTAL): Split Alignment (Rp Rata Kiri, Angka Rata Kanan)
         _format_currency_cell_split(tr_row.cells[3], row_data["HARGA SATUAN"], col_widths_cm[3], bold=False, size_pt=10.5, is_dash_if_zero=True)
         _format_currency_cell_split(tr_row.cells[4], row_data["HARGA TOTAL"], col_widths_cm[4], bold=False, size_pt=10.5, is_dash_if_zero=True)
 
@@ -1687,14 +1875,7 @@ def _build_6col_financial_table(doc, df_items: pd.DataFrame, merge_ket: bool, ke
 
 
 def generate_rab_docx_bytes(rab_payload: dict) -> bytes:
-    """
-    Mesin pembuat dokumen Word (.docx) khusus RAB sesuai pakem resmi RAB DWP GABUNGAN DI JEMBER.docx:
-    - Kop Surat Resmi DWP KPPBC TMC Malang
-    - Judul 3 Baris Terpusat (Bold, Kapital)
-    - Kalimat Pengantar Sumber Dana
-    - Tabel 6 Kolom Rincian Anggaran (Split Alignment Rp Rata Kiri & Angka Rata Kanan)
-    - Catatan Kaki (*Note :) dengan daftar ber-bullet
-    """
+    """Mesin pembuat dokumen Word (.docx) khusus RAB sesuai pakem resmi RAB DWP GABUNGAN DI JEMBER.docx."""
     doc, _ = _prepare_cloned_document()
 
     def _add_p(text="", align=WD_ALIGN_PARAGRAPH.LEFT, left_cm=0.73, right_cm=0.80, first_line_cm=0.0, before_pt=0, after_pt=3, bold=False, italic=False, size_pt=11.0):
@@ -1791,10 +1972,7 @@ def generate_rab_docx_bytes(rab_payload: dict) -> bytes:
 
 
 def generate_lpj_docx_bytes(payload: dict, custom_sig_bytes: bytes = None, attachment_images: list = None) -> bytes:
-    """
-    Mesin utama pembuat dokumen Word (.docx) LPJ sesuai pakem resmi LPJ_DWP GABUNGAN DI BLITAR_2026-1.docx.
-    Termasuk Penyempurnaan 1 (Split-Alignment Rp Rata Kiri) & Penyempurnaan 6 (2 Paragraf Jabatan Terpisah).
-    """
+    """Mesin utama pembuat dokumen Word (.docx) LPJ sesuai pakem resmi LPJ_DWP GABUNGAN DI BLITAR_2026-1.docx."""
     doc, assets = _prepare_cloned_document()
     sig_to_use = custom_sig_bytes if custom_sig_bytes else assets["sig"]
 
@@ -2008,7 +2186,6 @@ def generate_lpj_docx_bytes(payload: dict, custom_sig_bytes: bytes = None, attac
             r_ig.font.size = Pt(10.0)
             r_ig.font.italic = True
 
-    # PENYEMPURNAAN MUTLAK 6: 2 Paragraf Jabatan Penandatangan LPJ Terpisah (p_jab_1 & p_jab_2)
     jab_1 = (payload.get("jabatan_baris_1") or "Ketua Dharma Wanita Persatuan").strip()
     jab_2 = (payload.get("jabatan_baris_2") or "KPPBC Tipe Madya Cukai Malang").strip()
     nama_ttd = (payload.get("nama_penandatangan") or "Ny. Rini Johan Pandores").strip()
@@ -2121,8 +2298,10 @@ def convert_docx_bytes_to_pdf_bytes(docx_bytes: bytes) -> tuple:
             with open(in_docx, "wb") as f:
                 f.write(docx_bytes)
 
+            lo_profile = os.path.join(tmpdir, "lo_profile")
             cmd = [
                 lo_bin,
+                f"-env:UserInstallation=file://{lo_profile}",
                 "--headless",
                 "--convert-to",
                 "pdf",
@@ -2141,7 +2320,7 @@ def convert_docx_bytes_to_pdf_bytes(docx_bytes: bytes) -> tuple:
 
 
 # ==============================================================================
-# BAGIAN 5: DIRECT DOWNLOAD BASE64 & LIVE PREVIEW KERTAS A4 V8.0 (SPLIT RP)
+# BAGIAN 5: DIRECT DOWNLOAD BASE64 & LIVE PREVIEW KERTAS A4 V9.0 (SPLIT RP)
 # ==============================================================================
 
 def make_direct_download_html(file_bytes: bytes, filename: str, mime_type: str, label: str, bg_gradient: str) -> str:
@@ -2189,10 +2368,7 @@ def _build_kop_html(logo1_b64: str, logo2_b64: str) -> str:
 
 
 def build_a4_live_preview_html(doc_mode: str, payload: dict, custom_sig_bytes: bytes = None) -> str:
-    """
-    PENYEMPURNAAN 1: Membangun pratinjau visual HTML Kertas A4 untuk RAB maupun LPJ
-    dengan `fmt_rp_html_split` sehingga huruf Rp rata kiri lurus vertikal sejajar baris TOTAL!
-    """
+    """Membangun pratinjau visual HTML Kertas A4 untuk RAB maupun LPJ dengan `fmt_rp_html_split`."""
     assets = get_default_assets_bytes()
     logo1_b64 = base64.b64encode(assets["logo1"]).decode("ascii")
     logo2_b64 = base64.b64encode(assets["logo2"]).decode("ascii")
@@ -2518,7 +2694,7 @@ def build_a4_live_preview_html(doc_mode: str, payload: dict, custom_sig_bytes: b
     <body>
         <div class="toolbar-print">
             <div style="font-size:13px;font-weight:700;color:#1E293B;">
-                📄 Pratinjau Kertas A4 Resmi — Mode Dokumen: {doc_mode} DWP KPPBC TMC Malang (Rp Rata Kiri Sejajar TOTAL)
+                📄 Pratinjau Kertas A4 Resmi — Mode Dokumen: {doc_mode} DWP KPPBC TMC Malang
             </div>
             <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF via Browser</button>
         </div>
@@ -2532,7 +2708,7 @@ def build_a4_live_preview_html(doc_mode: str, payload: dict, custom_sig_bytes: b
 
 
 # ==============================================================================
-# BAGIAN 6: SPESIFIKASI CSS "FILY" MODERN ADMIN UI V8.0 (ANTI DARK-MODE)
+# BAGIAN 6: SPESIFIKASI CSS NATIVE CONTAINER V9.0 (ZERO EMPTY WHITE BARS)
 # ==============================================================================
 
 def inject_fily_admin_css():
@@ -2551,9 +2727,18 @@ def inject_fily_admin_css():
             background-color: rgba(241, 245, 249, 0.90) !important;
         }
         .block-container {
-            padding-top: 1.2rem !important;
+            padding-top: 1.1rem !important;
             padding-bottom: 2.5rem !important;
             max-width: 1440px !important;
+        }
+        /* Native st.container(border=True) Card Styling — 0% Empty White Bars */
+        [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
+            background-color: #FFFFFF !important;
+            border-radius: 14px !important;
+            border: 1px solid #E2E8F0 !important;
+            padding: 18px 20px !important;
+            margin-bottom: 16px !important;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04) !important;
         }
         /* Dark Slate Navy Sidebar (#1E2235) */
         [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {
@@ -2614,6 +2799,7 @@ def inject_fily_admin_css():
         [data-testid="stMain"] h2,
         [data-testid="stMain"] h3,
         [data-testid="stMain"] h4,
+        [data-testid="stMain"] h5,
         [data-testid="stMain"] li,
         [data-testid="stMain"] td,
         [data-testid="stMain"] th {
@@ -2643,7 +2829,7 @@ def inject_fily_admin_css():
         }
         /* Tombol Utama Modern */
         [data-testid="stMain"] .stButton > button {
-            min-height: 46px !important;
+            min-height: 45px !important;
             border-radius: 10px !important;
             font-size: 14px !important;
             font-weight: 700 !important;
@@ -2651,7 +2837,7 @@ def inject_fily_admin_css():
             color: #FFFFFF !important;
             -webkit-text-fill-color: #FFFFFF !important;
             border: none !important;
-            box-shadow: 0 4px 12px rgba(43, 152, 240, 0.22) !important;
+            box-shadow: 0 4px 12px rgba(43, 152, 240, 0.20) !important;
             transition: all 0.18s ease !important;
         }
         [data-testid="stMain"] .stButton > button p,
@@ -2661,7 +2847,7 @@ def inject_fily_admin_css():
         }
         [data-testid="stMain"] .stButton > button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(43, 152, 240, 0.32) !important;
+            box-shadow: 0 6px 16px rgba(43, 152, 240, 0.30) !important;
         }
         [data-testid="stSidebar"] .stButton > button {
             min-height: 42px !important;
@@ -2676,76 +2862,46 @@ def inject_fily_admin_css():
         /* Top Welcome Bar & 4 Pill KPI Cards ("Fily" Style) */
         .fily-topbar {
             background: #FFFFFF !important;
-            padding: 14px 22px;
-            border-radius: 12px;
+            padding: 14px 20px;
+            border-radius: 14px;
             border: 1px solid #E2E8F0;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: 12px;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
         }
         .fily-pill {
             border-radius: 999px;
-            padding: 15px 22px;
+            padding: 14px 20px;
             color: #FFFFFF !important;
             display: flex;
             align-items: center;
             justify-content: space-between;
             box-shadow: 0 6px 18px rgba(15, 23, 42, 0.10);
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
         .fily-pill * {
             color: #FFFFFF !important;
             -webkit-text-fill-color: #FFFFFF !important;
         }
         .fily-pill-icon {
-            width: 48px;
-            height: 48px;
+            width: 46px;
+            height: 46px;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.22);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 22px;
+            font-size: 21px;
             flex-shrink: 0;
         }
         .pill-emerald { background: linear-gradient(135deg, #00D09C 0%, #00B386 100%); }
         .pill-blue    { background: linear-gradient(135deg, #2B98F0 0%, #1D7FE0 100%); }
         .pill-rose    { background: linear-gradient(135deg, #F85370 0%, #E63956 100%); }
         .pill-amber   { background: linear-gradient(135deg, #FBA01D 0%, #F58800 100%); }
-
-        .fily-card {
-            background: #FFFFFF !important;
-            border-radius: 12px;
-            border: 1px solid #E2E8F0;
-            padding: 18px 22px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
-        }
-        .fily-history-bar {
-            background: linear-gradient(90deg, #F8FAFC 0%, #EFF6FF 100%) !important;
-            border-radius: 12px;
-            border: 1.5px solid #BFDBFE;
-            padding: 14px 18px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 8px rgba(43, 152, 240, 0.07);
-        }
-        .fily-section-hdr {
-            background: #FFFFFF !important;
-            border-left: 5px solid #2B98F0;
-            border-radius: 10px;
-            padding: 12px 18px;
-            margin-bottom: 16px;
-            border-top: 1px solid #E2E8F0;
-            border-right: 1px solid #E2E8F0;
-            border-bottom: 1px solid #E2E8F0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -2753,7 +2909,7 @@ def inject_fily_admin_css():
 
 
 # ==============================================================================
-# BAGIAN 7: MANAJEMEN STATE, AUTO-HISTORY & BAR CETAK ULANG CEPAT V8.0
+# BAGIAN 7: MANAJEMEN STATE, KONVERSI CERDAS RAB->LPJ & BAR RIWAYAT V9.0
 # ==============================================================================
 
 def load_rab_into_state(data: dict):
@@ -2817,6 +2973,7 @@ def load_lpj_into_state(data: dict):
 
 def collect_rab_payload(df_rab_override: pd.DataFrame = None) -> dict:
     df_use = df_rab_override if df_rab_override is not None else st.session_state.get("df_items_rab", pd.DataFrame())
+    df_clean = normalize_items_df(df_use, st.session_state.get("ket_tabel_rab", ""), include_hapus_col=False)
     return {
         "id_rab": st.session_state.get("id_rab", "RAB-2026-JEMBER"),
         "baris_1_judul": st.session_state.get("baris_1_judul", "RANCANGAN ANGGARAN BIAYA"),
@@ -2827,12 +2984,13 @@ def collect_rab_payload(df_rab_override: pd.DataFrame = None) -> dict:
         "merge_ket_rab": st.session_state.get("merge_ket_rab", False),
         "catatan_note_rab": st.session_state.get("catatan_note_rab", ""),
         "status_konversi": st.session_state.get("status_konversi", "BELUM DIKONVERSI"),
-        "items_rab": df_use.to_dict(orient="records"),
+        "items_rab": df_clean.to_dict(orient="records"),
     }
 
 
 def collect_lpj_payload(df_lpj_override: pd.DataFrame = None) -> dict:
     df_use = df_lpj_override if df_lpj_override is not None else st.session_state.get("df_items_dana", pd.DataFrame())
+    df_clean = normalize_items_df(df_use, st.session_state.get("ket_tabel_dana", ""), include_hapus_col=False)
     return {
         "id_lpj": st.session_state.get("id_lpj", "LPJ-20260813-BLITAR"),
         "id_rab_ref": st.session_state.get("id_rab_ref", ""),
@@ -2855,15 +3013,17 @@ def collect_lpj_payload(df_lpj_override: pd.DataFrame = None) -> dict:
         "jabatan_baris_2": st.session_state.get("jabatan_baris_2", "KPPBC Tipe Madya Cukai Malang"),
         "nama_penandatangan": st.session_state.get("nama_penandatangan", "Ny. Rini Johan Pandores"),
         "tampilkan_ttd": st.session_state.get("tampilkan_ttd", True),
-        "items_dana": df_use.to_dict(orient="records"),
+        "items_dana": df_clean.to_dict(orient="records"),
     }
 
 
 def convert_active_rab_to_lpj(df_rab_current: pd.DataFrame = None, sheet_id: str = "", creds_str: str = ""):
     """
-    1-Klik Konversi RAB ke LPJ + Auto-Save ke History:
-    Menarik Nama Kegiatan, Lokasi Acara, Sumber Dana, dan seluruh baris anggaran RAB
-    langsung menjadi draf LPJ siap pakai tanpa ketik ulang!
+    PERBAIKAN MUTLAK V9.0: Konversi RAB ke LPJ secara cerdas dan kontekstual:
+    - Menarik Nama Kegiatan, Lokasi Acara, Sumber Dana, dan seluruh baris anggaran RAB
+    - Menetapkan `id_rab_ref = id_rab`
+    - Menyesuaikan `rangkaian_kegiatan`, `tema_kegiatan`, dan `konteks_hut` agar sesuai dengan lokasi RAB
+      (TIDAK menyisakan teks rangkaian kegiatan Blitar / Bapak Nurtjahjo / Museum Bung Karno jika lokasi RAB bukan di Blitar!)
     """
     raw_nama_rab = (st.session_state.get("nama_kegiatan_rab") or "").strip()
     if raw_nama_rab.upper().startswith("PELAKSANAAN "):
@@ -2880,6 +3040,7 @@ def convert_active_rab_to_lpj(df_rab_current: pd.DataFrame = None, sheet_id: str
     tempat_lpj = lok_rab.title()
     for acr in ["KPPBC", "TMC", "TMP", "DJBC", "C", "A", "B"]:
         tempat_lpj = tempat_lpj.replace(f" {acr.title()} ", f" {acr} ").replace(f"{acr.title()} ", f"{acr} ")
+    tempat_lpj = tempat_lpj.replace("Tmp C", "Tipe Madya Pabean C").replace("TMP C", "Tipe Madya Pabean C")
 
     sumber_rab = (st.session_state.get("sumber_dana_rab") or "Kas Dharma Wanita KPPBC TMC Malang").strip()
     if "donatur" not in sumber_rab.lower():
@@ -2889,10 +3050,25 @@ def convert_active_rab_to_lpj(df_rab_current: pd.DataFrame = None, sheet_id: str
 
     ket_lpj = st.session_state.get("ket_tabel_dana") or "Kas DWP BC Malang & Donatur Anggota"
     df_src = df_rab_current if df_rab_current is not None else st.session_state.get("df_items_rab", pd.DataFrame())
-    df_lpj_new = normalize_items_df(df_src, ket_lpj)
+    df_lpj_new = normalize_items_df(df_src, ket_lpj, include_hapus_col=False)
     df_lpj_new["KETERANGAN"] = ket_lpj
 
-    new_lpj_id = "LPJ-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    # Cek apakah lokasi RAB bukan di Blitar; jika bukan Blitar namun rangkaian kegiatan masih berisi teks Blitar, ganti!
+    cur_rangkaian = str(st.session_state.get("rangkaian_kegiatan") or "")
+    is_rab_blitar = "blitar" in tempat_lpj.lower() if False else ("blitar" in tempat_lpj.lower())
+    has_blitar_leftover = any(k in cur_rangkaian.lower() for k in ["blitar", "nurtjahjo", "bung karno", "tumpeng"])
+
+    if not is_rab_blitar and (has_blitar_leftover or not cur_rangkaian.strip()):
+        st.session_state["rangkaian_kegiatan"] = NL.join([
+            f"Pembukaan acara dan sambutan pada kegiatan di {tempat_lpj or 'lokasi acara'}.",
+            "Pelaksanaan kegiatan inti pertemuan rutin dan ramah tamah anggota Dharma Wanita Persatuan.",
+            "Penutupan acara dan dokumentasi bersama.",
+        ])
+        st.session_state["tema_kegiatan"] = ""
+        st.session_state["konteks_hut"] = ""
+
+    kota_tag = "".join(ch for ch in tempat_lpj.split()[-1].upper() if ch.isalnum()) if tempat_lpj.strip() else "DWP"
+    new_lpj_id = f"LPJ-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{kota_tag}"
     st.session_state["id_lpj"] = new_lpj_id
     st.session_state["id_rab_ref"] = st.session_state.get("id_rab", "RAB-AKTIF")
     st.session_state["nama_kegiatan"] = nama_lpj
@@ -2903,28 +3079,28 @@ def convert_active_rab_to_lpj(df_rab_current: pd.DataFrame = None, sheet_id: str
     st.session_state["preview_doc_mode"] = "LPJ"
     st.session_state["lpj_editor_ver"] = int(st.session_state.get("lpj_editor_ver", 0)) + 1
 
-    # Auto-save RAB & LPJ hasil konversi ke History Permanen
     save_rab_to_storage(collect_rab_payload(df_src), sheet_id, creds_str)
     save_lpj_to_storage(collect_lpj_payload(df_lpj_new), sheet_id, creds_str)
 
 
 def init_app_state():
-    if "app_v8_initialized" not in st.session_state:
+    if "app_v9_initialized" not in st.session_state:
         st.session_state["rab_editor_ver"] = 0
         st.session_state["lpj_editor_ver"] = 0
+        st.session_state["deleted_doc_ids"] = []
         persisted = load_persistent_local_history()
         st.session_state["local_db_rab"] = persisted.get("rab_rows", [])
         st.session_state["local_db_lpj"] = persisted.get("lpj_rows", [])
         st.session_state["local_rekap_dana"] = persisted.get("rekap_rows", [])
         load_rab_into_state(SEED_HISTORY_RAB_JEMBER)
         load_lpj_into_state(SEED_HISTORY_LPJ_BLITAR_2026)
-        st.session_state["active_menu"] = MENU_DASHBOARD
-        st.session_state["preview_doc_mode"] = "LPJ"
-        st.session_state["app_v8_initialized"] = True
+        st.session_state["active_menu"] = MENU_RAB
+        st.session_state["preview_doc_mode"] = "RAB"
+        st.session_state["app_v9_initialized"] = True
 
 
 def switch_menu(target_menu: str, preview_mode: str = None):
-    st.session_state[" _nav_target"] = target_menu
+    st.session_state["_nav_target"] = target_menu
     if preview_mode:
         st.session_state["preview_doc_mode"] = preview_mode
     st.rerun()
@@ -2932,12 +3108,8 @@ def switch_menu(target_menu: str, preview_mode: str = None):
 
 def render_history_quick_bar(context_key: str, default_doc_filter: str, bundle: dict, sheet_id_active: str, creds_active: str):
     """
-    PENYEMPURNAAN MUTLAK 3: Bar Pemilih History & Cetak Ulang Cepat (Ala Aplikasi BA Segel)
-    Tampil di bagian atas Dashboard, Susun RAB, Buat LPJ, Preview & PDF, serta History & Data.
-    Dilengkapi 3 tombol:
-    1) 📂 Buka & Edit Data Ini
-    2) 📑 Salin Jadi Dokumen Baru (+ Ganti Kota Otomatis)
-    3) 🖨️ Langsung Cetak Ulang (Word & PDF)
+    PERBAIKAN MUTLAK V9.0: Panel Pilih dari Riwayat / Salin / Cetak Ulang / Hapus Data (4 Tombol Lengkap)
+    Menggunakan `with st.container(border=True):` asli Streamlit sehingga 0% pita putih kosong!
     """
     rab_rows = bundle.get("rab_rows", [])
     lpj_rows = bundle.get("lpj_rows", [])
@@ -2982,100 +3154,107 @@ def render_history_quick_bar(context_key: str, default_doc_filter: str, bundle: 
             options_map[label] = ("RAB", r)
             ordered_keys.append(label)
 
-    st.markdown('<div class="fily-history-bar">', unsafe_allow_html=True)
-    st.markdown(
-        "**🗂️ Pilih dari History Dokumen (Buka / Salin / Cetak Ulang 1-Klik — Persis Sistem BA Segel)**"
-    )
-    hc1, hc2 = st.columns([2.2, 1.1])
-    with hc1:
-        sel_hist_label = st.selectbox(
-            "Pilih Dokumen dari Riwayat (RAB / LPJ):",
-            options=ordered_keys if ordered_keys else ["-- Belum Ada Dokumen History --"],
-            key=f"hist_sel_{context_key}",
-        )
-    with hc2:
-        new_city_in = st.text_input(
-            "Kota Tujuan Baru (Jika Salin Dokumen):",
-            placeholder="Misal: Kediri / Pasuruan / Malang",
-            key=f"hist_city_{context_key}",
-        )
+    with st.container(border=True):
+        st.markdown("##### 🗂️ Pilih dari Riwayat / Salin ke Kota Baru / Cetak Ulang / Hapus Data")
+        hc1, hc2 = st.columns([2.2, 1.1])
+        with hc1:
+            sel_hist_label = st.selectbox(
+                "Pilih Dokumen dari Riwayat (RAB / LPJ):",
+                options=ordered_keys if ordered_keys else ["-- Belum Ada Dokumen Riwayat --"],
+                key=f"hist_sel_{context_key}",
+            )
+        with hc2:
+            new_city_in = st.text_input(
+                "Kota Tujuan Baru (Jika Menyalin Dokumen):",
+                placeholder="Misal: Kediri / Pasuruan / Malang",
+                key=f"hist_city_{context_key}",
+            )
 
-    hb1, hb2, hb3 = st.columns(3)
-    with hb1:
-        if st.button("📂 Buka & Edit Data Ini", key=f"btn_open_hist_{context_key}", use_container_width=True):
-            if sel_hist_label in options_map:
-                dtype, row_obj = options_map[sel_hist_label]
-                raw_j = row_obj.get("PAYLOAD_JSON", "")
-                if raw_j:
-                    parsed_p = json.loads(raw_j)
-                    if dtype == "RAB":
-                        load_rab_into_state(parsed_p)
-                        st.toast(f"History RAB ({row_obj.get('ID_RAB')}) berhasil dimuat ke editor!", icon="📂")
-                        switch_menu(MENU_RAB)
-                    else:
-                        load_lpj_into_state(parsed_p)
-                        st.toast(f"History LPJ ({row_obj.get('ID_LPJ')}) berhasil dimuat ke editor!", icon="📂")
-                        switch_menu(MENU_LPJ)
+        hb1, hb2, hb3, hb4 = st.columns(4)
+        with hb1:
+            if st.button("📂 Buka & Edit", key=f"btn_open_hist_{context_key}", use_container_width=True):
+                if sel_hist_label in options_map:
+                    dtype, row_obj = options_map[sel_hist_label]
+                    raw_j = row_obj.get("PAYLOAD_JSON", "")
+                    if raw_j:
+                        parsed_p = json.loads(raw_j)
+                        if dtype == "RAB":
+                            load_rab_into_state(parsed_p)
+                            st.toast(f"Riwayat RAB ({row_obj.get('ID_RAB')}) berhasil dimuat!", icon="📂")
+                            switch_menu(MENU_RAB)
+                        else:
+                            load_lpj_into_state(parsed_p)
+                            st.toast(f"Riwayat LPJ ({row_obj.get('ID_LPJ')}) berhasil dimuat!", icon="📂")
+                            switch_menu(MENU_LPJ)
 
-    with hb2:
-        if st.button("📑 Salin Jadi Dokumen Baru (+ Ganti Kota)", key=f"btn_copy_hist_{context_key}", use_container_width=True):
-            if sel_hist_label in options_map:
-                dtype, row_obj = options_map[sel_hist_label]
-                raw_j = row_obj.get("PAYLOAD_JSON", "")
-                if raw_j:
-                    parsed_p = json.loads(raw_j)
-                    target_city = (new_city_in or "").strip() or "Kediri"
-                    cloned_p = replace_city_across_payload(dtype, parsed_p, target_city)
-                    if dtype == "RAB":
-                        load_rab_into_state(cloned_p)
-                        save_rab_to_storage(collect_rab_payload(), sheet_id_active, creds_active)
-                        st.toast(f"Salinan RAB baru untuk kota {target_city.title()} berhasil dibuat & disimpan ke History!", icon="📑")
-                        switch_menu(MENU_RAB)
-                    else:
-                        load_lpj_into_state(cloned_p)
-                        save_lpj_to_storage(collect_lpj_payload(), sheet_id_active, creds_active)
-                        st.toast(f"Salinan LPJ baru untuk kota {target_city.title()} berhasil dibuat & disimpan ke History!", icon="📑")
-                        switch_menu(MENU_LPJ)
+        with hb2:
+            if st.button("📑 Salin ke Kota Baru", key=f"btn_copy_hist_{context_key}", use_container_width=True):
+                if sel_hist_label in options_map:
+                    dtype, row_obj = options_map[sel_hist_label]
+                    raw_j = row_obj.get("PAYLOAD_JSON", "")
+                    if raw_j:
+                        parsed_p = json.loads(raw_j)
+                        target_city = (new_city_in or "").strip() or "Kediri"
+                        cloned_p = replace_city_across_payload(dtype, parsed_p, target_city)
+                        if dtype == "RAB":
+                            load_rab_into_state(cloned_p)
+                            save_rab_to_storage(collect_rab_payload(), sheet_id_active, creds_active)
+                            st.toast(f"Salinan RAB baru untuk kota {target_city.title()} berhasil dibuat!", icon="📑")
+                            switch_menu(MENU_RAB)
+                        else:
+                            load_lpj_into_state(cloned_p)
+                            save_lpj_to_storage(collect_lpj_payload(), sheet_id_active, creds_active)
+                            st.toast(f"Salinan LPJ baru untuk kota {target_city.title()} berhasil dibuat!", icon="📑")
+                            switch_menu(MENU_LPJ)
 
-    with hb3:
-        if st.button("🖨️ Langsung Cetak Ulang (Word & PDF)", key=f"btn_reprint_hist_{context_key}", use_container_width=True):
-            if sel_hist_label in options_map:
-                dtype, row_obj = options_map[sel_hist_label]
-                raw_j = row_obj.get("PAYLOAD_JSON", "")
-                if raw_j:
-                    parsed_p = json.loads(raw_j)
-                    if dtype == "RAB":
-                        load_rab_into_state(parsed_p)
-                        switch_menu(MENU_PREVIEW, preview_mode="RAB")
+        with hb3:
+            if st.button("🖨️ Cetak Ulang (Word/PDF)", key=f"btn_reprint_hist_{context_key}", use_container_width=True):
+                if sel_hist_label in options_map:
+                    dtype, row_obj = options_map[sel_hist_label]
+                    raw_j = row_obj.get("PAYLOAD_JSON", "")
+                    if raw_j:
+                        parsed_p = json.loads(raw_j)
+                        if dtype == "RAB":
+                            load_rab_into_state(parsed_p)
+                            switch_menu(MENU_PREVIEW, preview_mode="RAB")
+                        else:
+                            load_lpj_into_state(parsed_p)
+                            switch_menu(MENU_PREVIEW, preview_mode="LPJ")
+
+        with hb4:
+            if st.button("🗑️ Hapus Dokumen Terpilih", key=f"btn_del_hist_{context_key}", use_container_width=True):
+                if sel_hist_label in options_map:
+                    dtype, row_obj = options_map[sel_hist_label]
+                    doc_id_del = row_obj.get("ID_RAB") if dtype == "RAB" else row_obj.get("ID_LPJ")
+                    ok_del, msg_del = delete_document_from_storage(dtype, doc_id_del, sheet_id_active, creds_active)
+                    if ok_del:
+                        st.toast(msg_del, icon="🗑️")
+                        st.rerun()
                     else:
-                        load_lpj_into_state(parsed_p)
-                        switch_menu(MENU_PREVIEW, preview_mode="LPJ")
-    st.markdown("</div>", unsafe_allow_html=True)
+                        st.error(msg_del)
 
 
 def render_mail_merge_expander(doc_mode: str, payload: dict):
-    """
-    PENYEMPURNAAN MUTLAK 4: Expander Tabel Pemetaan Variabel Mail Merge (<<TAG>> -> Isi Dokumen).
-    """
-    with st.expander(f"🏷️ Lihat Pemetaan Variabel Mail Merge ({doc_mode}: <<TAG>> → Isi Dokumen)", expanded=False):
+    """Expander Tabel Pemetaan Variabel Mail Merge (<<TAG>> -> Isi Dokumen)."""
+    with st.expander(f"🏷️ Lihat Pemetaan Variabel Mail Merge ({doc_mode})", expanded=False):
         mm_list = build_mail_merge_dictionary(doc_mode, payload)
         st.dataframe(pd.DataFrame(mm_list), use_container_width=True, hide_index=True)
 
 
 # ==============================================================================
-# BAGIAN 8: MAIN APPLICATION V8.0 (MODERN SIDEBAR ADMIN + MAIL MERGE + HISTORY)
+# BAGIAN 8: MAIN APPLICATION V9.0 (CLEAN NATIVE CONTAINERS & FULL CRUD)
 # ==============================================================================
 
 def main():
     inject_fily_admin_css()
     init_app_state()
 
-    if " _nav_target" in st.session_state:
-        st.session_state["active_menu"] = st.session_state.pop(" _nav_target")
+    if "_nav_target" in st.session_state:
+        st.session_state["active_menu"] = st.session_state.pop("_nav_target")
 
     default_sheet_id = get_active_spreadsheet_id()
 
-    # --- SIDEBAR: DARK SLATE NAVY ("FILY" ADMIN NAVIGATION V8.0) ---
+    # --- SIDEBAR: DARK SLATE NAVY ("FILY" ADMIN NAVIGATION V9.0) ---
     with st.sidebar:
         st.markdown(
             """
@@ -3085,16 +3264,16 @@ def main():
                 </div>
                 <div>
                     <div style="font-weight:800;font-size:16px;letter-spacing:0.4px;color:#FFFFFF;">DWP BC MALANG</div>
-                    <div style="font-size:11.5px;color:#94A3B8;">RAB & LPJ Suite V8.0</div>
+                    <div style="font-size:11.5px;color:#94A3B8;">RAB & LPJ Suite V9.0</div>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        st.caption("MENU NAVIGASI UTAMA")
+        st.caption("MENU UTAMA")
         active_menu = st.radio(
-            "Navigasi Utama",
+            "Menu Utama",
             options=ALL_MENUS,
             key="active_menu",
             label_visibility="collapsed",
@@ -3106,7 +3285,7 @@ def main():
         tot_lpj_side = int(df_lpj_side["HARGA TOTAL"].sum()) if not df_lpj_side.empty else 0
 
         st.markdown('<div style="border-top:1px solid #2D334D;margin:12px 0 10px 0;"></div>', unsafe_allow_html=True)
-        st.caption("DOKUMEN AKTIF SAAT INI")
+        st.caption("DOKUMEN SEDANG DIEDIT")
         st.markdown(
             f"""
             <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:9px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;">
@@ -3119,33 +3298,30 @@ def main():
             unsafe_allow_html=True,
         )
 
-        st.caption("PINTASAN BUAT BARU & PRESET")
-        if st.button("➕ Buat RAB Baru (Auto-Save)", use_container_width=True):
-            save_rab_to_storage(collect_rab_payload(), default_sheet_id, st.session_state.get("creds_json_str", ""))
+        st.caption("BUAT FORMULIR BARU & CONTOH")
+        if st.button("➕ Mulai RAB Baru", use_container_width=True):
             new_rab = dict(PRESET_RAB_JEMBER)
             new_rab["id_rab"] = "RAB-" + datetime.now().strftime("%Y%m%d-%H%M%S")
             load_rab_into_state(new_rab)
-            save_rab_to_storage(collect_rab_payload(), default_sheet_id, st.session_state.get("creds_json_str", ""))
-            st.toast(f"Dokumen RAB baru ({new_rab['id_rab']}) siap diedit!", icon="➕")
+            st.toast(f"Formulir RAB baru ({new_rab['id_rab']}) siap diisi!", icon="➕")
             switch_menu(MENU_RAB)
 
-        if st.button("➕ Buat LPJ Baru (Auto-Save)", use_container_width=True):
-            save_lpj_to_storage(collect_lpj_payload(), default_sheet_id, st.session_state.get("creds_json_str", ""))
+        if st.button("➕ Mulai LPJ Baru", use_container_width=True):
             new_lpj = dict(PRESET_LPJ_BLITAR_2026)
             new_lpj["id_lpj"] = "LPJ-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+            new_lpj["id_rab_ref"] = ""
             load_lpj_into_state(new_lpj)
-            save_lpj_to_storage(collect_lpj_payload(), default_sheet_id, st.session_state.get("creds_json_str", ""))
-            st.toast(f"Dokumen LPJ baru ({new_lpj['id_lpj']}) siap diedit!", icon="➕")
+            st.toast(f"Formulir LPJ baru ({new_lpj['id_lpj']}) siap diisi!", icon="➕")
             switch_menu(MENU_LPJ)
 
-        if st.button("📋 Muat Preset RAB Jember", use_container_width=True):
+        if st.button("📋 Muat Contoh RAB Jember", use_container_width=True):
             load_rab_into_state(SEED_HISTORY_RAB_JEMBER)
-            st.toast("Preset RAB DWP Gabungan di Jember (Rp 2.094.000) dimuat!", icon="📋")
+            st.toast("Contoh RAB DWP Gabungan di Jember (Rp 2.094.000) dimuat!", icon="📋")
             switch_menu(MENU_RAB)
 
-        if st.button("📝 Muat Preset LPJ Blitar 2026", use_container_width=True):
+        if st.button("📝 Muat Contoh LPJ Blitar 2026", use_container_width=True):
             load_lpj_into_state(SEED_HISTORY_LPJ_BLITAR_2026)
-            st.toast("Preset LPJ DWP Gabungan di Blitar (Rp 5.075.000) dimuat!", icon="📝")
+            st.toast("Contoh LPJ DWP Gabungan di Blitar (Rp 5.075.000) dimuat!", icon="📝")
             switch_menu(MENU_LPJ)
 
         st.markdown('<div style="border-top:1px solid #2D334D;margin:12px 0 10px 0;"></div>', unsafe_allow_html=True)
@@ -3175,610 +3351,743 @@ def main():
         creds_active = st.session_state.get("creds_json_str", "")
         bundle = get_sheet_bundle(sheet_id_active, creds_active)
 
-        status_dot = "🟢 Cloud & History Lokal OK" if bundle.get("ok") else "🟢 History Lokal Permanen Aktif"
+        status_dot = "🟢 Cloud & Riwayat Lokal Aktif" if bundle.get("ok") else "🟢 Riwayat Lokal Permanen Aktif"
         st.caption(f"Status: **{status_dot}**")
 
     df_rab_now = st.session_state.get("df_items_rab", pd.DataFrame())
     df_lpj_now = st.session_state.get("df_items_dana", pd.DataFrame())
 
-    tot_rab_val = int(df_rab_now["HARGA TOTAL"].sum()) if not df_rab_now.empty else 0
-    tot_lpj_val = int(df_lpj_now["HARGA TOTAL"].sum()) if not df_lpj_now.empty else 0
-    selisih_val = tot_lpj_val - tot_rab_val
-    arsip_count = len(bundle.get("rab_rows", [])) + len(bundle.get("lpj_rows", []))
-
     # --- TOP WELCOME BAR ---
-    tb_col1, tb_col2 = st.columns([2.6, 1.1])
-    with tb_col1:
-        st.markdown(
-            f"""
-            <div class="fily-topbar">
-                <div>
-                    <div style="font-size:18px;font-weight:800;color:#0F172A;">
-                        👋 Halo Pengurus DWP! Sistem Mail Merge & Auto-History V8.0 Siap Digunakan
-                    </div>
-                    <div style="font-size:13px;color:#475569;margin-top:2px;">
-                        Format Akuntansi <b>Rp Rata Kiri Sejajar TOTAL</b> • <b>Otomasi Iuran DWP (5 Orang 300rb + 75rb/org)</b> • <b>Cetak Ulang 1-Klik</b>
-                    </div>
+    st.markdown(
+        f"""
+        <div class="fily-topbar">
+            <div>
+                <div style="font-size:17.5px;font-weight:800;color:#0F172A;">
+                    👋 Sistem Generator RAB & LPJ DWP KPPBC Tipe Madya Cukai Malang (V9.0)
                 </div>
-                <div style="font-size:12.5px;font-weight:700;background:#EFF6FF;color:#1D4ED8;padding:6px 12px;border-radius:8px;border:1px solid #BFDBFE;">
-                    {status_dot}
+                <div style="font-size:12.8px;color:#475569;margin-top:2px;">
+                    Format Akuntansi <b>Rp Rata Kiri Sejajar TOTAL</b> • <b>Otomasi Iuran DWP (5 Orang 300rb + 75rb/org)</b> • <b>Fitur Hapus Baris & Riwayat</b>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with tb_col2:
-        if st.button("🚀 Konversi RAB → LPJ (1-Klik)", use_container_width=True):
-            convert_active_rab_to_lpj(df_rab_now, sheet_id_active, creds_active)
-            st.toast("RAB berhasil dikonversi menjadi LPJ & disimpan ke History!", icon="🚀")
-            switch_menu(MENU_LPJ)
+            <div style="font-size:12.5px;font-weight:700;background:#EFF6FF;color:#1D4ED8;padding:6px 12px;border-radius:8px;border:1px solid #BFDBFE;">
+                {status_dot}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # ==========================================================================
-    # VIEW 0: 🏠 DASHBOARD UTAMA ("FILY" 4 PILL KPI CARDS + PUSAT HISTORY CEPAT)
+    # VIEW 1: 📋 1. BUAT / EDIT RAB (PRA-KEGIATAN)
     # ==========================================================================
-    if active_menu == MENU_DASHBOARD:
-        k1, k2, k3, k4 = st.columns(4)
-        with k1:
-            st.markdown(
-                f"""
-                <div class="fily-pill pill-emerald">
-                    <div class="fily-pill-icon">📋</div>
-                    <div style="text-align:right;">
-                        <div style="font-size:12px;font-weight:700;opacity:0.92;">TOTAL RENCANA (RAB)</div>
-                        <div style="font-size:20px;font-weight:800;">{fmt_rp_cell(tot_rab_val, False)}</div>
-                        <div style="font-size:11.5px;opacity:0.9;">{len(df_rab_now)} Baris Item</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with k2:
-            st.markdown(
-                f"""
-                <div class="fily-pill pill-blue">
-                    <div class="fily-pill-icon">📝</div>
-                    <div style="text-align:right;">
-                        <div style="font-size:12px;font-weight:700;opacity:0.92;">TOTAL REALISASI (LPJ)</div>
-                        <div style="font-size:20px;font-weight:800;">{fmt_rp_cell(tot_lpj_val, False)}</div>
-                        <div style="font-size:11.5px;opacity:0.9;">{len(df_lpj_now)} Baris Item</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with k3:
-            selisih_label = ("+" if selisih_val > 0 else "") + fmt_ribuan(selisih_val)
-            st.markdown(
-                f"""
-                <div class="fily-pill pill-rose">
-                    <div class="fily-pill-icon">🎯</div>
-                    <div style="text-align:right;">
-                        <div style="font-size:12px;font-weight:700;opacity:0.92;">SELISIH (LPJ vs RAB)</div>
-                        <div style="font-size:20px;font-weight:800;">Rp {selisih_label}</div>
-                        <div style="font-size:11.5px;opacity:0.9;">Komparasi LPJ vs RAB</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with k4:
-            st.markdown(
-                f"""
-                <div class="fily-pill pill-amber">
-                    <div class="fily-pill-icon">🗄️</div>
-                    <div style="text-align:right;">
-                        <div style="font-size:12px;font-weight:700;opacity:0.92;">HISTORY ARSIP SIAP</div>
-                        <div style="font-size:20px;font-weight:800;">{arsip_count} Dokumen</div>
-                        <div style="font-size:11.5px;opacity:0.9;">Siap Cetak Ulang 1-Klik</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        # Pusat History & Cetak Ulang Cepat di Dashboard
-        render_history_quick_bar("dash", "ALL", bundle, sheet_id_active, creds_active)
-
-        col_comp, col_short = st.columns([1.85, 1.15])
-        with col_comp:
-            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
-            st.markdown("#### 📊 Tabel Komparasi Anggaran (Rencana RAB vs Realisasi LPJ)")
-            max_len = max(len(df_rab_now), len(df_lpj_now))
-            comp_rows = []
-            for i in range(max_len):
-                r_rab = df_rab_now.iloc[i] if i < len(df_rab_now) else None
-                r_lpj = df_lpj_now.iloc[i] if i < len(df_lpj_now) else None
-                comp_rows.append({
-                    "NO": i + 1,
-                    "KEBUTUHAN (RAB)": str(r_rab["KEBUTUHAN KEGIATAN"]) if r_rab is not None else "-",
-                    "NILAI RAB": fmt_rp_cell(r_rab["HARGA TOTAL"], True) if r_rab is not None else "-",
-                    "KEBUTUHAN (LPJ)": str(r_lpj["KEBUTUHAN KEGIATAN"]) if r_lpj is not None else "-",
-                    "NILAI LPJ": fmt_rp_cell(r_lpj["HARGA TOTAL"], True) if r_lpj is not None else "-",
-                })
-            st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with col_short:
-            st.markdown('<div class="fily-card">', unsafe_allow_html=True)
-            st.markdown("#### ⚡ Pintasan Alur Kerja & Dokumen Aktif")
-            st.markdown(
-                f"""
-                - **RAB Aktif (`{st.session_state.get('id_rab')}`)**:
-                  {st.session_state.get('lokasi_acara_rab')} — **{fmt_rp_cell(tot_rab_val, False)}**
-                - **LPJ Aktif (`{st.session_state.get('id_lpj')}`)**:
-                  {st.session_state.get('tempat_acara')} — **{fmt_rp_cell(tot_lpj_val, False)}**
-                - **Status Konversi RAB → LPJ**:
-                  `{st.session_state.get('status_konversi')}`
-                """
-            )
-            if st.button("📋 Edit RAB Aktif (Susun RAB)", use_container_width=True):
-                switch_menu(MENU_RAB)
-            if st.button("📝 Edit LPJ Aktif (Buat LPJ)", use_container_width=True):
-                switch_menu(MENU_LPJ)
-            if st.button("🖨️ Preview Kertas A4 & Unduh Word/PDF", use_container_width=True):
-                switch_menu(MENU_PREVIEW)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    # ==========================================================================
-    # VIEW 1: 📋 1. SUSUN RAB (ALUR LURUS 3 LANGKAH + HISTORY BAR + TIERED IURAN)
-    # ==========================================================================
-    elif active_menu == MENU_RAB:
+    if active_menu == MENU_RAB:
         render_history_quick_bar("rab", "RAB", bundle, sheet_id_active, creds_active)
 
-        # LANGKAH 1: IDENTITAS DOKUMEN RAB (VARIABEL MAIL MERGE <<TAG>>)
-        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
-        st.markdown("#### 📌 LANGKAH 1: IDENTITAS DOKUMEN RAB (VARIABEL MAIL MERGE `<<TAG>>`)")
-        r_c1, r_c2 = st.columns([1.6, 1.0])
-        with r_c1:
-            st.text_area(
-                "Nama Kegiatan <<NAMA_KEGIATAN_KAPITAL>> (Otomatis Kapital di Dokumen):",
-                key="nama_kegiatan_rab",
-                height=72,
-            )
-        with r_c2:
-            st.text_input(
-                "Lokasi Acara <<LOKASI_ACARA_KAPITAL>> (Contoh: (DI KPPBC TMP C JEMBER)):",
-                key="lokasi_acara_rab",
-            )
-            st.text_input(
-                "Sumber Dana <<SUMBER_DANA_RAB>>:",
-                key="sumber_dana_rab",
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # LANGKAH 2: TABEL RINCIAN DANA RAB (OTOMATIS HITUNG & RP RATA KIRI SEJAJAR TOTAL)
-        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
-        st.markdown("#### 💰 LANGKAH 2: TABEL RINCIAN DANA (OTOMATIS HITUNG & `Rp` RATA KIRI SEJAJAR `TOTAL`!)")
-        st.caption(
-            "💡 **Otomasi Pintar V8.0:** "
-            "• Baris **'Iuran DWP Gabungan'**: Ubah `JUMLAH` (misal `7` → `9`) maka `HARGA TOTAL` otomatis menghitung paket **Rp 300.000 + (4 x Rp 75.000) = Rp 600.000** seketika di dalam sel tabel & memperbarui `*Note` di bawah! "
-            "• **Barang Biasa**: Ubah `JUMLAH` atau `HARGA SATUAN` → `HARGA TOTAL` langsung terhitung! "
-            "• **Gratis / Fasilitas (Mobil/Sopir)**: Isi `0` pada Harga Satuan & Total (tercetak `Rp` di kiri dan `-` di kanan)."
-        )
-
-        with st.expander("⚡ Klik jika ingin Copy-Paste daftar belanja dari WhatsApp / Tambah Baris Manual", expanded=False):
-            mp1, mp2 = st.columns([1.3, 1.0])
-            with mp1:
-                wa_rab = st.text_area(
-                    "Tempel rincian anggaran dari WhatsApp (Contoh: `Iuran DWP Gabungan di Jember 9`, `Doorprize 7 x 50.000`, `Mobil 2 -`):",
-                    height=100,
-                    key="wa_paste_rab",
+        # LANGKAH 1: IDENTITAS KEGIATAN RAB (TANPA <<TAG>> DI LABEL)
+        with st.container(border=True):
+            st.markdown("#### 📌 Langkah 1: Identitas Kegiatan RAB")
+            r_c1, r_c2 = st.columns([1.6, 1.0])
+            with r_c1:
+                st.text_area(
+                    "Nama Kegiatan (Otomatis Dicetak Huruf Kapital di Dokumen):",
+                    key="nama_kegiatan_rab",
+                    height=76,
                 )
-                b_p1, b_p2 = st.columns(2)
-                with b_p1:
-                    if st.button("🔮 Tambah ke Tabel RAB", use_container_width=True):
-                        items_new = smart_paste_parser(wa_rab, st.session_state.get("ket_tabel_rab", ""))
-                        if items_new:
+            with r_c2:
+                st.text_input(
+                    "Lokasi Acara (Contoh: (DI KPPBC TMP C JEMBER)):",
+                    key="lokasi_acara_rab",
+                )
+                st.text_input(
+                    "Sumber Dana:",
+                    key="sumber_dana_rab",
+                )
+
+        # LANGKAH 2: TABEL RINCIAN DANA RAB (DENGAN KOLOM HAPUS? & TOMBOL HAPUS BARIS)
+        with st.container(border=True):
+            st.markdown("#### 💰 Langkah 2: Tabel Rincian Dana RAB (Rp Rata Kiri & Bisa Hapus Baris)")
+            st.caption(
+                "💡 **Cara Pakai:** "
+                "• **Baris Iuran DWP Gabungan**: Ketik `JUMLAH` orang (misal `7` atau `9`), maka `HARGA TOTAL` otomatis menghitung paket **Rp 300.000 + (Rp 75.000/orang di atas 5)** & memperbarui `*Note` di bawah! "
+                "• **Barang Biasa**: Ketik `JUMLAH` & `HARGA SATUAN` (Total terhitung otomatis). "
+                "• **Hapus Baris**: Centang kotak **🗑️ HAPUS?** di sisi kanan baris yang ingin dibuang, lalu klik tombol **🗑️ Hapus Baris yang Dicentang** di bawah tabel."
+            )
+
+            with st.expander("⚡ Copy-Paste Daftar Belanja dari WhatsApp / Tambah Baris Cepat", expanded=False):
+                mp1, mp2 = st.columns([1.3, 1.0])
+                with mp1:
+                    wa_rab = st.text_area(
+                        "Tempel rincian anggaran dari WhatsApp (Contoh: Iuran DWP Gabungan di Jember 9, Doorprize 7 x 50.000, Mobil 2 -):",
+                        height=100,
+                        key="wa_paste_rab",
+                    )
+                    b_p1, b_p2 = st.columns(2)
+                    with b_p1:
+                        if st.button("🔮 Tambah ke Tabel RAB", use_container_width=True):
+                            items_new = smart_paste_parser(wa_rab, st.session_state.get("ket_tabel_rab", ""))
+                            if items_new:
+                                cur = st.session_state["df_items_rab"].to_dict(orient="records")
+                                cur.extend(items_new)
+                                df_new = normalize_items_df(cur, st.session_state.get("ket_tabel_rab", ""))
+                                st.session_state["df_items_rab"] = df_new
+                                st.session_state["catatan_note_rab"] = sync_iuran_note_rab(st.session_state.get("catatan_note_rab", ""), df_new)
+                                st.session_state["rab_editor_ver"] = int(st.session_state.get("rab_editor_ver", 0)) + 1
+                                st.rerun()
+                    with b_p2:
+                        if st.button("🔄 Ganti Seluruh Tabel RAB", use_container_width=True):
+                            items_new = smart_paste_parser(wa_rab, st.session_state.get("ket_tabel_rab", ""))
+                            if items_new:
+                                df_new = normalize_items_df(items_new, st.session_state.get("ket_tabel_rab", ""))
+                                st.session_state["df_items_rab"] = df_new
+                                st.session_state["catatan_note_rab"] = sync_iuran_note_rab(st.session_state.get("catatan_note_rab", ""), df_new)
+                                st.session_state["rab_editor_ver"] = int(st.session_state.get("rab_editor_ver", 0)) + 1
+                                st.rerun()
+                with mp2:
+                    qr_nama = st.text_input("Nama Kebutuhan Kegiatan RAB", key="qr_nama")
+                    qr_jml = st.number_input("Jumlah (Qty)", min_value=1, value=1, step=1, key="qr_jml")
+                    qr_tipe = st.selectbox(
+                        "Mode Perhitungan",
+                        [
+                            "Normal (Qty x Harga Satuan)",
+                            "Paket Iuran DWP Gabungan (5 org 300rb + 75rb/org)",
+                            "Borongan (Langsung Harga Total)",
+                            "Fasilitas / Gratis (Rp -)",
+                        ],
+                        key="qr_tipe",
+                    )
+                    qr_nom = st.text_input("Nominal Harga Satuan / Borongan (Rp)", value="0", key="qr_nom")
+                    if st.button("➕ Tambahkan ke Tabel RAB", use_container_width=True):
+                        if qr_nama.strip():
+                            v_nom = parse_num(qr_nom)
+                            if qr_tipe.startswith("Normal"):
+                                hs, ht = v_nom, int(qr_jml) * v_nom
+                            elif qr_tipe.startswith("Paket Iuran"):
+                                hs, ht = 0, calc_tiered_iuran_dwp(int(qr_jml))
+                            elif qr_tipe.startswith("Borongan"):
+                                hs, ht = 0, v_nom
+                            else:
+                                hs, ht = 0, 0
                             cur = st.session_state["df_items_rab"].to_dict(orient="records")
-                            cur.extend(items_new)
+                            cur.append({
+                                "KEBUTUHAN KEGIATAN": qr_nama.strip(),
+                                "JUMLAH": int(qr_jml),
+                                "HARGA SATUAN": hs,
+                                "HARGA TOTAL": ht,
+                                "KETERANGAN": st.session_state.get("ket_tabel_rab", ""),
+                            })
                             df_new = normalize_items_df(cur, st.session_state.get("ket_tabel_rab", ""))
                             st.session_state["df_items_rab"] = df_new
                             st.session_state["catatan_note_rab"] = sync_iuran_note_rab(st.session_state.get("catatan_note_rab", ""), df_new)
                             st.session_state["rab_editor_ver"] = int(st.session_state.get("rab_editor_ver", 0)) + 1
                             st.rerun()
-                with b_p2:
-                    if st.button("🔄 Ganti Seluruh Tabel RAB", use_container_width=True):
-                        items_new = smart_paste_parser(wa_rab, st.session_state.get("ket_tabel_rab", ""))
-                        if items_new:
-                            df_new = normalize_items_df(items_new, st.session_state.get("ket_tabel_rab", ""))
-                            st.session_state["df_items_rab"] = df_new
-                            st.session_state["catatan_note_rab"] = sync_iuran_note_rab(st.session_state.get("catatan_note_rab", ""), df_new)
-                            st.session_state["rab_editor_ver"] = int(st.session_state.get("rab_editor_ver", 0)) + 1
-                            st.rerun()
-            with mp2:
-                qr_nama = st.text_input("Nama Kebutuhan Kegiatan RAB", key="qr_nama")
-                qr_jml = st.number_input("Jumlah (Qty)", min_value=1, value=1, step=1, key="qr_jml")
-                qr_tipe = st.selectbox(
-                    "Mode Perhitungan",
-                    [
-                        "Normal (Qty x Harga Satuan)",
-                        "Paket Iuran DWP Gabungan (5 org 300rb + 75rb/org)",
-                        "Borongan (Langsung Harga Total)",
-                        "Fasilitas / Gratis (Rp -)",
-                    ],
-                    key="qr_tipe",
-                )
-                qr_nom = st.text_input("Nominal Harga Satuan / Borongan (Rp)", value="0", key="qr_nom")
-                if st.button("➕ Tambahkan Baris ke RAB", use_container_width=True):
-                    if qr_nama.strip():
-                        v_nom = parse_num(qr_nom)
-                        if qr_tipe.startswith("Normal"):
-                            hs, ht = v_nom, int(qr_jml) * v_nom
-                        elif qr_tipe.startswith("Paket Iuran"):
-                            hs, ht = 0, calc_tiered_iuran_dwp(int(qr_jml))
-                        elif qr_tipe.startswith("Borongan"):
-                            hs, ht = 0, v_nom
-                        else:
-                            hs, ht = 0, 0
-                        cur = st.session_state["df_items_rab"].to_dict(orient="records")
-                        cur.append({
-                            "KEBUTUHAN KEGIATAN": qr_nama.strip(),
-                            "JUMLAH": int(qr_jml),
-                            "HARGA SATUAN": hs,
-                            "HARGA TOTAL": ht,
-                            "KETERANGAN": st.session_state.get("ket_tabel_rab", ""),
-                        })
-                        df_new = normalize_items_df(cur, st.session_state.get("ket_tabel_rab", ""))
-                        st.session_state["df_items_rab"] = df_new
-                        st.session_state["catatan_note_rab"] = sync_iuran_note_rab(st.session_state.get("catatan_note_rab", ""), df_new)
-                        st.session_state["rab_editor_ver"] = int(st.session_state.get("rab_editor_ver", 0)) + 1
+
+            rab_ver = int(st.session_state.get("rab_editor_ver", 0))
+            df_rab_for_editor = normalize_items_df(
+                st.session_state["df_items_rab"],
+                default_ket=st.session_state.get("ket_tabel_rab", ""),
+                include_hapus_col=True,
+            )
+            edited_rab_raw = st.data_editor(
+                df_rab_for_editor,
+                num_rows="dynamic",
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "NO": st.column_config.NumberColumn("NO", width="small", disabled=True),
+                    "KEBUTUHAN KEGIATAN": st.column_config.TextColumn("KEBUTUHAN KEGIATAN", width="large", required=True),
+                    "JUMLAH": st.column_config.NumberColumn("JUMLAH", min_value=0, step=1, width="small"),
+                    "HARGA SATUAN": st.column_config.NumberColumn("HARGA SATUAN (Rp)", min_value=0, step=1000, format="%d"),
+                    "HARGA TOTAL": st.column_config.NumberColumn("HARGA TOTAL (Rp)", min_value=0, step=1000, format="%d"),
+                    "KETERANGAN": st.column_config.TextColumn("KETERANGAN", width="medium"),
+                    "HAPUS?": st.column_config.CheckboxColumn("🗑️ HAPUS?", width="small", default=False),
+                },
+                key=f"editor_table_rab_{rab_ver}",
+            )
+
+            df_rab_live, checked_rab_indices = sync_data_editor_live(
+                edited_raw=edited_rab_raw,
+                state_df_key="df_items_rab",
+                ver_key="rab_editor_ver",
+                default_ket=st.session_state.get("ket_tabel_rab", ""),
+                is_rab=True,
+            )
+            total_rab_live = int(df_rab_live["HARGA TOTAL"].sum()) if not df_rab_live.empty else 0
+
+            # Baris Aksi Tabel: Tambah Baris Kosong, Hapus Baris yang Dicentang, atau Hapus Nomor Baris Tertentu
+            act_c1, act_c2, act_c3 = st.columns([1.0, 1.3, 1.1])
+            with act_c1:
+                if st.button("➕ Tambah 1 Baris Kosong di Bawah", key="btn_add_row_rab", use_container_width=True):
+                    df_added = append_blank_row_to_items_df(df_rab_live, st.session_state.get("ket_tabel_rab", ""))
+                    st.session_state["df_items_rab"] = df_added
+                    st.session_state["rab_editor_ver"] = rab_ver + 1
+                    st.rerun()
+            with act_c2:
+                n_checked_rab = len(checked_rab_indices)
+                lbl_del_rab = f"🗑️ Hapus Baris yang Dicentang ({n_checked_rab} Baris)" if n_checked_rab > 0 else "🗑️ Hapus Baris yang Dicentang (Centang Kolom 🗑️ HAPUS?)"
+                if st.button(lbl_del_rab, key="btn_del_checked_rab", use_container_width=True):
+                    if n_checked_rab > 0:
+                        df_after_del = delete_rows_from_items_df(df_rab_live, checked_rab_indices, st.session_state.get("ket_tabel_rab", ""))
+                        st.session_state["df_items_rab"] = df_after_del
+                        st.session_state["catatan_note_rab"] = sync_iuran_note_rab(st.session_state.get("catatan_note_rab", ""), df_after_del)
+                        st.session_state["rab_editor_ver"] = rab_ver + 1
+                        st.toast(f"{n_checked_rab} baris berhasil dihapus dari tabel RAB!", icon="🗑️")
                         st.rerun()
-
-        rab_ver = int(st.session_state.get("rab_editor_ver", 0))
-        edited_rab_raw = st.data_editor(
-            st.session_state["df_items_rab"],
-            num_rows="dynamic",
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "NO": st.column_config.NumberColumn("NO", width="small", disabled=True),
-                "KEBUTUHAN KEGIATAN": st.column_config.TextColumn("KEBUTUHAN KEGIATAN", width="large", required=True),
-                "JUMLAH": st.column_config.NumberColumn("JUMLAH", min_value=0, step=1, width="small"),
-                "HARGA SATUAN": st.column_config.NumberColumn("HARGA SATUAN (Rp)", min_value=0, step=1000, format="%d"),
-                "HARGA TOTAL": st.column_config.NumberColumn("HARGA TOTAL (Rp)", min_value=0, step=1000, format="%d"),
-                "KETERANGAN": st.column_config.TextColumn("KETERANGAN", width="medium"),
-            },
-            key=f"editor_table_rab_{rab_ver}",
-        )
-
-        df_rab_live = sync_data_editor_live(
-            edited_raw=edited_rab_raw,
-            state_df_key="df_items_rab",
-            ver_key="rab_editor_ver",
-            default_ket=st.session_state.get("ket_tabel_rab", ""),
-            is_rab=True,
-        )
-        total_rab_live = int(df_rab_live["HARGA TOTAL"].sum()) if not df_rab_live.empty else 0
-
-        mismatches = detect_location_mismatch(st.session_state.get("lokasi_acara_rab", ""), df_rab_live)
-        if mismatches:
-            for m in mismatches:
-                st.warning(
-                    f"⚠️ **Detektor Konsistensi Lokasi**: Judul RAB tertulis **{m['target_city']}**, "
-                    f"tetapi Baris #{m['no']} (`{m['item']}`) menyebut **{m['wrong_city']}**."
+                    else:
+                        st.warning("Silakan centang kotak pada kolom '🗑️ HAPUS?' di sebelah kanan baris yang ingin dihapus terlebih dahulu.")
+            with act_c3:
+                del_no_rab = st.selectbox(
+                    "Atau Pilih Nomor Baris untuk Dihapus:",
+                    options=["-- Pilih Baris --"] + [f"Baris #{int(r['NO'])}: {r['KEBUTUHAN KEGIATAN']}" for _, r in df_rab_live.iterrows()],
+                    key="sel_del_no_rab",
+                    label_visibility="collapsed",
                 )
-            if st.button(f"🛠️ Perbaiki Otomatis Nama Kota Menjadi '{mismatches[0]['target_city']}'", use_container_width=False):
-                fixed_rows = df_rab_live.to_dict(orient="records")
-                for row_f in fixed_rows:
-                    for m in mismatches:
-                        row_f["KEBUTUHAN KEGIATAN"] = str(row_f["KEBUTUHAN KEGIATAN"]).replace(m["wrong_city"], m["target_city"]).replace(m["wrong_city"].lower(), m["target_city"])
-                st.session_state["df_items_rab"] = normalize_items_df(fixed_rows, st.session_state.get("ket_tabel_rab", ""))
-                st.session_state["rab_editor_ver"] = int(st.session_state.get("rab_editor_ver", 0)) + 1
-                st.rerun()
+                if del_no_rab != "-- Pilih Baris --":
+                    idx_to_del = int(del_no_rab.split("#")[1].split(":")[0]) - 1
+                    df_after_del = delete_rows_from_items_df(df_rab_live, [idx_to_del], st.session_state.get("ket_tabel_rab", ""))
+                    st.session_state["df_items_rab"] = df_after_del
+                    st.session_state["catatan_note_rab"] = sync_iuran_note_rab(st.session_state.get("catatan_note_rab", ""), df_after_del)
+                    st.session_state["rab_editor_ver"] = rab_ver + 1
+                    st.toast(f"{del_no_rab} berhasil dihapus!", icon="🗑️")
+                    st.rerun()
 
-        st.info(
-            f"📌 **Total:** `{len(df_rab_live)} Baris`  |  "
-            f"💵 **TOTAL ANGGARAN RAB:** `{fmt_rp_cell(total_rab_live, False)}` "
-            f"*({terbilang(total_rab_live)})*"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+            mismatches = detect_location_mismatch(st.session_state.get("lokasi_acara_rab", ""), df_rab_live)
+            if mismatches:
+                for m in mismatches:
+                    st.warning(
+                        f"⚠️ Detektor Konsistensi Lokasi: Judul RAB tertulis **{m['target_city']}**, "
+                        f"tetapi Baris #{m['no']} ({m['item']}) menyebut **{m['wrong_city']}**."
+                    )
+                if st.button(f"🛠️ Sesuaikan Otomatis Nama Kota Menjadi '{mismatches[0]['target_city']}'", use_container_width=False):
+                    fixed_rows = df_rab_live.to_dict(orient="records")
+                    for row_f in fixed_rows:
+                        for m in mismatches:
+                            row_f["KEBUTUHAN KEGIATAN"] = str(row_f["KEBUTUHAN KEGIATAN"]).replace(m["wrong_city"], m["target_city"]).replace(m["wrong_city"].lower(), m["target_city"])
+                    st.session_state["df_items_rab"] = normalize_items_df(fixed_rows, st.session_state.get("ket_tabel_rab", ""))
+                    st.session_state["rab_editor_ver"] = rab_ver + 1
+                    st.rerun()
+
+            st.info(
+                f"📌 **Total Item:** {len(df_rab_live)} Baris  |  "
+                f"💵 **TOTAL ANGGARAN RAB:** **{fmt_rp_cell(total_rab_live, False)}** "
+                f"*({terbilang(total_rab_live)})*"
+            )
 
         # LANGKAH 3: CATATAN (*Note) & TOMBOL SIMPAN / CETAK DOKUMEN
-        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
-        st.markdown("#### 📝 LANGKAH 3: CATATAN (`*Note`) & TOMBOL SIMPAN / CETAK DOKUMEN")
-        st.text_area(
-            "Catatan Rincian di Bawah Tabel <<CATATAN_NOTE_BULLET>> (1 baris = 1 poin bullet •):",
-            key="catatan_note_rab",
-            height=90,
-        )
+        with st.container(border=True):
+            st.markdown("#### 📝 Langkah 3: Catatan (*Note) & Tombol Simpan / Cetak Dokumen")
+            st.text_area(
+                "Catatan Rincian di Bawah Tabel (*Note : setiap 1 baris otomatis menjadi 1 poin bullet •):",
+                key="catatan_note_rab",
+                height=90,
+            )
 
-        with st.expander("⚙️ Pengaturan Format Baku RAB (Judul Baris 1 & Merge Keterangan)", expanded=False):
-            cfg_r1, cfg_r2, cfg_r3 = st.columns([1.2, 1.2, 1.0])
-            with cfg_r1:
-                st.text_input("ID Dokumen RAB <<ID_RAB>>", key="id_rab")
-            with cfg_r2:
-                st.text_input("Judul Baris 1 <<JUDUL_BARIS_1>>", key="baris_1_judul")
-            with cfg_r3:
-                st.text_input("Keterangan Tabel RAB (Opsional)", key="ket_tabel_rab")
-                st.checkbox("Merge Vertikal Kolom Keterangan RAB", key="merge_ket_rab")
+            with st.expander("⚙️ Pengaturan Lanjutan RAB (ID Dokumen, Judul Baris 1 & Kolom Keterangan)", expanded=False):
+                cfg_r1, cfg_r2, cfg_r3 = st.columns([1.2, 1.2, 1.0])
+                with cfg_r1:
+                    st.text_input("ID Dokumen RAB", key="id_rab")
+                with cfg_r2:
+                    st.text_input("Judul Baris 1", key="baris_1_judul")
+                with cfg_r3:
+                    st.text_input("Keterangan Tabel RAB (Opsional)", key="ket_tabel_rab")
+                    st.checkbox("Gabungkan (Merge) Vertikal Kolom Keterangan RAB", key="merge_ket_rab")
 
-        rab_payload_now = collect_rab_payload(df_rab_live)
-        render_mail_merge_expander("RAB", rab_payload_now)
+            rab_payload_now = collect_rab_payload(df_rab_live)
+            render_mail_merge_expander("RAB", rab_payload_now)
 
-        ba1, ba2, ba3 = st.columns(3)
-        with ba1:
-            if st.button("💾 Simpan ke History & Cloud", key="btn_save_rab_main", use_container_width=True):
-                ok_s, msg_s = save_rab_to_storage(rab_payload_now, sheet_id_active, creds_active)
-                if ok_s:
-                    st.success(msg_s)
-                else:
-                    st.error(msg_s)
-        with ba2:
-            if st.button("🚀 Konversi RAB ke LPJ (1-Klik)", key="btn_conv_rab_main", use_container_width=True):
-                convert_active_rab_to_lpj(df_rab_live, sheet_id_active, creds_active)
-                st.toast("RAB berhasil dikonversi ke LPJ & tersimpan otomatis di History!", icon="🚀")
-                switch_menu(MENU_LPJ)
-        with ba3:
-            if st.button("🖨️ Buka Preview & Cetak (Auto-Save)", key="btn_prev_rab_main", use_container_width=True):
-                save_rab_to_storage(rab_payload_now, sheet_id_active, creds_active)
-                switch_menu(MENU_PREVIEW, preview_mode="RAB")
-        st.markdown("</div>", unsafe_allow_html=True)
+            ba1, ba2, ba3 = st.columns(3)
+            with ba1:
+                if st.button("💾 Simpan RAB ke Riwayat", key="btn_save_rab_main", use_container_width=True):
+                    ok_s, msg_s = save_rab_to_storage(rab_payload_now, sheet_id_active, creds_active)
+                    if ok_s:
+                        st.success(msg_s)
+                    else:
+                        st.error(msg_s)
+            with ba2:
+                if st.button("🚀 Buat LPJ dari RAB Ini (1-Klik)", key="btn_conv_rab_main", use_container_width=True):
+                    convert_active_rab_to_lpj(df_rab_live, sheet_id_active, creds_active)
+                    st.toast("Seluruh data RAB berhasil ditarik menjadi LPJ & menyesuaikan kota kegiatan!", icon="🚀")
+                    switch_menu(MENU_LPJ)
+            with ba3:
+                if st.button("🖨️ Preview Kertas A4 & Download Word/PDF", key="btn_prev_rab_main", use_container_width=True):
+                    save_rab_to_storage(rab_payload_now, sheet_id_active, creds_active)
+                    switch_menu(MENU_PREVIEW, preview_mode="RAB")
 
     # ==========================================================================
-    # VIEW 2: 📝 2. BUAT LPJ (ALUR LURUS 3 LANGKAH + HISTORY BAR + TIERED IURAN)
+    # VIEW 2: 📝 2. BUAT / EDIT LPJ (PASCA-KEGIATAN)
     # ==========================================================================
     elif active_menu == MENU_LPJ:
         render_history_quick_bar("lpj", "LPJ", bundle, sheet_id_active, creds_active)
 
-        # LANGKAH 1: IDENTITAS SURAT & PELAKSANAAN KEGIATAN LPJ (<<TAG>>)
-        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
-        hdr_l1, hdr_l2 = st.columns([2.0, 1.1])
-        with hdr_l1:
-            st.markdown("#### 📌 LANGKAH 1: IDENTITAS SURAT & PELAKSANAAN KEGIATAN LPJ (`<<TAG>>`)")
-        with hdr_l2:
-            if st.button("🚀 Tarik Data dari RAB Aktif Sekarang", use_container_width=True):
-                convert_active_rab_to_lpj(df_rab_now, sheet_id_active, creds_active)
-                st.toast("Data RAB berhasil ditarik ke form LPJ!", icon="🚀")
-                st.rerun()
+        # LANGKAH 1: IDENTITAS SURAT & PELAKSANAAN KEGIATAN LPJ (LABEL BERSIH TANPA <<TAG>>)
+        with st.container(border=True):
+            hdr_l1, hdr_l2 = st.columns([2.0, 1.1])
+            with hdr_l1:
+                st.markdown("#### 📌 Langkah 1: Identitas Surat & Pelaksanaan Kegiatan LPJ")
+            with hdr_l2:
+                if st.button("🚀 Tarik Data dari RAB yang Sedang Aktif", use_container_width=True):
+                    convert_active_rab_to_lpj(df_rab_now, sheet_id_active, creds_active)
+                    st.toast("Data RAB berhasil ditarik ke formulir LPJ!", icon="🚀")
+                    st.rerun()
 
-        d1, d2 = st.columns([1.0, 1.8])
-        with d1:
-            st.date_input("Tanggal Surat LPJ <<TGL_SURAT_LPJ>>", key="tgl_laporan")
-        with d2:
-            st.text_input("Nama Kegiatan Utama <<PARAGRAF_PEMBUKA_ADAPTIF>>", key="nama_kegiatan")
+            d1, d2 = st.columns([1.0, 1.8])
+            with d1:
+                st.date_input("Tanggal Surat LPJ", key="tgl_laporan")
+            with d2:
+                st.text_input("Nama Kegiatan", key="nama_kegiatan")
 
-        d3, d4 = st.columns(2)
-        with d3:
-            st.text_input("Tema Kegiatan (Opsional)", key="tema_kegiatan")
-        with d4:
-            st.text_input("Konteks Tambahan / HUT (Opsional)", key="konteks_hut")
+            d3, d4 = st.columns(2)
+            with d3:
+                st.text_input("Tema Kegiatan (Opsional — Kosongkan jika tidak ada tema khusus)", key="tema_kegiatan")
+            with d4:
+                st.text_input("Konteks Acara / HUT (Opsional — Kosongkan jika pertemuan rutin biasa)", key="konteks_hut")
 
-        d5, d6, d7 = st.columns([1.0, 0.9, 1.3])
-        with d5:
-            st.date_input("Tanggal Acara <<HARI_TGL_ACARA>>", key="tgl_acara")
-        with d6:
-            st.text_input("Waktu Acara <<WAKTU_ACARA>>", key="waktu_acara")
-        with d7:
-            st.text_input("Tempat Acara <<TEMPAT_ACARA>>", key="tempat_acara")
+            d5, d6, d7 = st.columns([1.0, 0.9, 1.3])
+            with d5:
+                st.date_input("Tanggal Pelaksanaan", key="tgl_acara")
+            with d6:
+                st.text_input("Waktu", key="waktu_acara")
+            with d7:
+                st.text_input("Tempat Pelaksanaan", key="tempat_acara")
 
-        st.text_area(
-            "Rangkaian Kegiatan <<RANGKAIAN_ACARA_NOMOR>> (1 Baris = 1 Nomor Urut Otomatis):",
-            key="rangkaian_kegiatan",
-            height=95,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # LANGKAH 2: TABEL RINCIAN REALISASI DANA LPJ (OTOMATIS HITUNG & RP RATA KIRI)
-        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
-        st.markdown("#### 💰 LANGKAH 2: TABEL REALISASI DANA LPJ (OTOMATIS HITUNG & `Rp` RATA KIRI SEJAJAR `TOTAL`!)")
-        ks1, ks2, ks3 = st.columns([1.3, 1.2, 0.8])
-        with ks1:
-            st.text_input("Sumber Dana <<SUMBER_DANA_LPJ>>:", key="sumber_dana")
-        with ks2:
-            st.text_input("Keterangan Kolom Tabel <<KET_TABEL_MERGED>>:", key="ket_tabel_dana")
-        with ks3:
-            st.write("")
-            st.checkbox("Merge Vertikal Keterangan", key="merge_ket_vertikal")
-
-        with st.expander("⚡ Klik jika ingin Copy-Paste daftar belanja LPJ dari WhatsApp", expanded=False):
-            wa_lpj = st.text_area(
-                "Smart Paste Rincian Belanja LPJ dari WhatsApp:",
-                height=90,
-                placeholder="Iuran DWP Gabungan di Blitar 10" + NL + "Sarapan Pagi (Roti) 20 x 13.000",
-                key="wa_paste_lpj",
+            st.text_area(
+                "Rangkaian Kegiatan (1 Baris = 1 Nomor Urut Otomatis):",
+                key="rangkaian_kegiatan",
+                height=95,
             )
-            bl1, bl2 = st.columns(2)
-            with bl1:
-                if st.button("🔮 Tambah ke Tabel LPJ", use_container_width=True):
-                    new_l = smart_paste_parser(wa_lpj, st.session_state.get("ket_tabel_dana", ""))
-                    if new_l:
-                        cur = st.session_state["df_items_dana"].to_dict(orient="records")
-                        cur.extend(new_l)
-                        st.session_state["df_items_dana"] = normalize_items_df(cur, st.session_state.get("ket_tabel_dana", ""))
-                        st.session_state["lpj_editor_ver"] = int(st.session_state.get("lpj_editor_ver", 0)) + 1
+
+        # LANGKAH 2: TABEL RINCIAN REALISASI DANA LPJ (DENGAN KOLOM HAPUS? & TOMBOL HAPUS BARIS)
+        with st.container(border=True):
+            st.markdown("#### 💰 Langkah 2: Tabel Realisasi Dana LPJ (Rp Rata Kiri & Bisa Hapus Baris)")
+            ks1, ks2, ks3 = st.columns([1.3, 1.2, 0.8])
+            with ks1:
+                st.text_input("Sumber Dana:", key="sumber_dana")
+            with ks2:
+                st.text_input("Keterangan Kolom Tabel:", key="ket_tabel_dana")
+            with ks3:
+                st.write("")
+                st.checkbox("Merge Vertikal Keterangan", key="merge_ket_vertikal")
+
+            with st.expander("⚡ Copy-Paste Daftar Belanja LPJ dari WhatsApp", expanded=False):
+                wa_lpj = st.text_area(
+                    "Tempel rincian belanja LPJ dari WhatsApp:",
+                    height=90,
+                    placeholder="Iuran DWP Gabungan di Blitar 10" + NL + "Sarapan Pagi (Roti) 20 x 13.000",
+                    key="wa_paste_lpj",
+                )
+                bl1, bl2 = st.columns(2)
+                with bl1:
+                    if st.button("🔮 Tambah ke Tabel LPJ", use_container_width=True):
+                        new_l = smart_paste_parser(wa_lpj, st.session_state.get("ket_tabel_dana", ""))
+                        if new_l:
+                            cur = st.session_state["df_items_dana"].to_dict(orient="records")
+                            cur.extend(new_l)
+                            st.session_state["df_items_dana"] = normalize_items_df(cur, st.session_state.get("ket_tabel_dana", ""))
+                            st.session_state["lpj_editor_ver"] = int(st.session_state.get("lpj_editor_ver", 0)) + 1
+                            st.rerun()
+                with bl2:
+                    if st.button("🔄 Ganti Seluruh Tabel LPJ", use_container_width=True):
+                        new_l = smart_paste_parser(wa_lpj, st.session_state.get("ket_tabel_dana", ""))
+                        if new_l:
+                            st.session_state["df_items_dana"] = normalize_items_df(new_l, st.session_state.get("ket_tabel_dana", ""))
+                            st.session_state["lpj_editor_ver"] = int(st.session_state.get("lpj_editor_ver", 0)) + 1
+                            st.rerun()
+
+            lpj_ver = int(st.session_state.get("lpj_editor_ver", 0))
+            df_lpj_for_editor = normalize_items_df(
+                st.session_state["df_items_dana"],
+                default_ket=st.session_state.get("ket_tabel_dana", ""),
+                include_hapus_col=True,
+            )
+            edited_lpj_raw = st.data_editor(
+                df_lpj_for_editor,
+                num_rows="dynamic",
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "NO": st.column_config.NumberColumn("NO", width="small", disabled=True),
+                    "KEBUTUHAN KEGIATAN": st.column_config.TextColumn("KEBUTUHAN KEGIATAN", width="large", required=True),
+                    "JUMLAH": st.column_config.NumberColumn("JUMLAH", min_value=0, step=1, width="small"),
+                    "HARGA SATUAN": st.column_config.NumberColumn("HARGA SATUAN (Rp)", min_value=0, step=1000, format="%d"),
+                    "HARGA TOTAL": st.column_config.NumberColumn("HARGA TOTAL (Rp)", min_value=0, step=1000, format="%d"),
+                    "KETERANGAN": st.column_config.TextColumn("KETERANGAN", width="medium"),
+                    "HAPUS?": st.column_config.CheckboxColumn("🗑️ HAPUS?", width="small", default=False),
+                },
+                key=f"editor_table_lpj_{lpj_ver}",
+            )
+
+            df_lpj_live, checked_lpj_indices = sync_data_editor_live(
+                edited_raw=edited_lpj_raw,
+                state_df_key="df_items_dana",
+                ver_key="lpj_editor_ver",
+                default_ket=st.session_state.get("ket_tabel_dana", ""),
+                is_rab=False,
+            )
+            total_lpj_live = int(df_lpj_live["HARGA TOTAL"].sum()) if not df_lpj_live.empty else 0
+
+            lact_1, lact_2, lact_3 = st.columns([1.0, 1.3, 1.1])
+            with lact_1:
+                if st.button("➕ Tambah 1 Baris Kosong di Bawah", key="btn_add_row_lpj", use_container_width=True):
+                    df_added = append_blank_row_to_items_df(df_lpj_live, st.session_state.get("ket_tabel_dana", ""))
+                    st.session_state["df_items_dana"] = df_added
+                    st.session_state["lpj_editor_ver"] = lpj_ver + 1
+                    st.rerun()
+            with lact_2:
+                n_checked_lpj = len(checked_lpj_indices)
+                lbl_del_lpj = f"🗑️ Hapus Baris yang Dicentang ({n_checked_lpj} Baris)" if n_checked_lpj > 0 else "🗑️ Hapus Baris yang Dicentang (Centang Kolom 🗑️ HAPUS?)"
+                if st.button(lbl_del_lpj, key="btn_del_checked_lpj", use_container_width=True):
+                    if n_checked_lpj > 0:
+                        df_after_del = delete_rows_from_items_df(df_lpj_live, checked_lpj_indices, st.session_state.get("ket_tabel_dana", ""))
+                        st.session_state["df_items_dana"] = df_after_del
+                        st.session_state["lpj_editor_ver"] = lpj_ver + 1
+                        st.toast(f"{n_checked_lpj} baris berhasil dihapus dari tabel LPJ!", icon="🗑️")
                         st.rerun()
-            with bl2:
-                if st.button("🔄 Ganti Seluruh Tabel LPJ", use_container_width=True):
-                    new_l = smart_paste_parser(wa_lpj, st.session_state.get("ket_tabel_dana", ""))
-                    if new_l:
-                        st.session_state["df_items_dana"] = normalize_items_df(new_l, st.session_state.get("ket_tabel_dana", ""))
-                        st.session_state["lpj_editor_ver"] = int(st.session_state.get("lpj_editor_ver", 0)) + 1
-                        st.rerun()
+                    else:
+                        st.warning("Silakan centang kotak pada kolom '🗑️ HAPUS?' di sebelah kanan baris yang ingin dihapus terlebih dahulu.")
+            with lact_3:
+                del_no_lpj = st.selectbox(
+                    "Atau Pilih Nomor Baris LPJ untuk Dihapus:",
+                    options=["-- Pilih Baris --"] + [f"Baris #{int(r['NO'])}: {r['KEBUTUHAN KEGIATAN']}" for _, r in df_lpj_live.iterrows()],
+                    key="sel_del_no_lpj",
+                    label_visibility="collapsed",
+                )
+                if del_no_lpj != "-- Pilih Baris --":
+                    idx_to_del = int(del_no_lpj.split("#")[1].split(":")[0]) - 1
+                    df_after_del = delete_rows_from_items_df(df_lpj_live, [idx_to_del], st.session_state.get("ket_tabel_dana", ""))
+                    st.session_state["df_items_dana"] = df_after_del
+                    st.session_state["lpj_editor_ver"] = lpj_ver + 1
+                    st.toast(f"{del_no_lpj} berhasil dihapus!", icon="🗑️")
+                    st.rerun()
 
-        lpj_ver = int(st.session_state.get("lpj_editor_ver", 0))
-        edited_lpj_raw = st.data_editor(
-            st.session_state["df_items_dana"],
-            num_rows="dynamic",
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "NO": st.column_config.NumberColumn("NO", width="small", disabled=True),
-                "KEBUTUHAN KEGIATAN": st.column_config.TextColumn("KEBUTUHAN KEGIATAN", width="large", required=True),
-                "JUMLAH": st.column_config.NumberColumn("JUMLAH", min_value=0, step=1, width="small"),
-                "HARGA SATUAN": st.column_config.NumberColumn("HARGA SATUAN (Rp)", min_value=0, step=1000, format="%d"),
-                "HARGA TOTAL": st.column_config.NumberColumn("HARGA TOTAL (Rp)", min_value=0, step=1000, format="%d"),
-                "KETERANGAN": st.column_config.TextColumn("KETERANGAN", width="medium"),
-            },
-            key=f"editor_table_lpj_{lpj_ver}",
-        )
-
-        df_lpj_live = sync_data_editor_live(
-            edited_raw=edited_lpj_raw,
-            state_df_key="df_items_dana",
-            ver_key="lpj_editor_ver",
-            default_ket=st.session_state.get("ket_tabel_dana", ""),
-            is_rab=False,
-        )
-        total_lpj_live = int(df_lpj_live["HARGA TOTAL"].sum()) if not df_lpj_live.empty else 0
-
-        st.info(
-            f"📌 **Total:** `{len(df_lpj_live)} Baris`  |  "
-            f"💵 **TOTAL REALISASI LPJ:** `{fmt_rp_cell(total_lpj_live, False)}` "
-            f"*({terbilang(total_lpj_live)})*"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.info(
+                f"📌 **Total Item:** {len(df_lpj_live)} Baris  |  "
+                f"💵 **TOTAL REALISASI LPJ:** **{fmt_rp_cell(total_lpj_live, False)}** "
+                f"*({terbilang(total_lpj_live)})*"
+            )
 
         # LANGKAH 3: PENUTUP, PENANDATANGAN & SIMPAN / CETAK LPJ
-        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
-        st.markdown("#### 🖋️ LANGKAH 3: PENUTUP, PENANDATANGAN (2 PARAGRAF TERPISAH) & CETAK LPJ")
-        cp1, cp2 = st.columns([1.25, 1.05])
-        with cp1:
-            st.checkbox("Tampilkan Paragraf Terima Kasih Donatur <<PARAGRAF_UCAPAN_DONATUR>>", key="tampilkan_ucapan_donatur")
-            if st.session_state.get("tampilkan_ucapan_donatur", True):
-                st.text_area("Redaksi Ucapan Terima Kasih Donatur:", key="teks_ucapan_donatur", height=85)
-            st.text_input("Catatan Dokumentasi Instagram <<CATATAN_IG>>:", key="catatan_ig")
-        with cp2:
-            st.text_input("Jabatan Baris 1 <<JABATAN_BARIS_1>> (Paragraf 1):", key="jabatan_baris_1")
-            st.text_input("Jabatan Baris 2 <<JABATAN_BARIS_2>> (Paragraf 2):", key="jabatan_baris_2")
-            st.text_input("Nama Penandatangan <<NAMA_PENANDATANGAN>>:", key="nama_penandatangan")
-            st.checkbox("Sertakan Gambar Tanda Tangan Asli (Ny. Rini Johan Pandores)", key="tampilkan_ttd")
+        with st.container(border=True):
+            st.markdown("#### 🖋️ Langkah 3: Penutup, Penandatangan & Cetak LPJ")
+            cp1, cp2 = st.columns([1.25, 1.05])
+            with cp1:
+                st.checkbox("Tampilkan Paragraf Ucapan Terima Kasih Donatur", key="tampilkan_ucapan_donatur")
+                if st.session_state.get("tampilkan_ucapan_donatur", True):
+                    st.text_area("Redaksi Ucapan Terima Kasih Donatur:", key="teks_ucapan_donatur", height=85)
+                st.text_input("Catatan Dokumentasi Instagram:", key="catatan_ig")
+            with cp2:
+                st.text_input("Jabatan Baris 1 (Paragraf 1):", key="jabatan_baris_1")
+                st.text_input("Jabatan Baris 2 (Paragraf 2):", key="jabatan_baris_2")
+                st.text_input("Nama Penandatangan:", key="nama_penandatangan")
+                st.checkbox("Sertakan Gambar Tanda Tangan Asli (Ny. Rini Johan Pandores)", key="tampilkan_ttd")
 
-        lpj_payload_now = collect_lpj_payload(df_lpj_live)
-        render_mail_merge_expander("LPJ", lpj_payload_now)
+            lpj_payload_now = collect_lpj_payload(df_lpj_live)
+            render_mail_merge_expander("LPJ", lpj_payload_now)
 
-        al1, al2 = st.columns(2)
-        with al1:
-            if st.button("💾 Simpan ke History & Cloud", key="btn_save_lpj_main", use_container_width=True):
-                ok_l, msg_l = save_lpj_to_storage(lpj_payload_now, sheet_id_active, creds_active)
-                if ok_l:
-                    st.success(msg_l)
-                else:
-                    st.error(msg_l)
-        with al2:
-            if st.button("🖨️ Buka Preview & Cetak LPJ (Auto-Save)", key="btn_prev_lpj_main", use_container_width=True):
-                save_lpj_to_storage(lpj_payload_now, sheet_id_active, creds_active)
-                switch_menu(MENU_PREVIEW, preview_mode="LPJ")
-        st.markdown("</div>", unsafe_allow_html=True)
+            al1, al2 = st.columns(2)
+            with al1:
+                if st.button("💾 Simpan LPJ ke Riwayat", key="btn_save_lpj_main", use_container_width=True):
+                    ok_l, msg_l = save_lpj_to_storage(lpj_payload_now, sheet_id_active, creds_active)
+                    if ok_l:
+                        st.success(msg_l)
+                    else:
+                        st.error(msg_l)
+            with al2:
+                if st.button("🖨️ Preview Kertas A4 & Download Word/PDF", key="btn_prev_lpj_main", use_container_width=True):
+                    save_lpj_to_storage(lpj_payload_now, sheet_id_active, creds_active)
+                    switch_menu(MENU_PREVIEW, preview_mode="LPJ")
 
     # ==========================================================================
-    # VIEW 3: 🖨️ 3. PREVIEW & PDF (SPLIT ALIGNMENT RP + MAIL MERGE + AUTO-SAVE)
+    # VIEW 3: 🖨️ 3. PREVIEW & DOWNLOAD (WORD & PDF)
     # ==========================================================================
     elif active_menu == MENU_PREVIEW:
         render_history_quick_bar("prev", "ALL", bundle, sheet_id_active, creds_active)
 
-        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
-        p_col1, p_col2 = st.columns([1.3, 1.7])
-        with p_col1:
-            doc_mode_sel = st.radio(
-                "Pilih Dokumen yang Ingin Di-Preview & Diunduh:",
-                options=["LPJ", "RAB"],
-                format_func=lambda x: "📝 Dokumen LPJ Resmi (Pasca-Kegiatan)" if x == "LPJ" else "📋 Dokumen RAB Resmi (Pra-Kegiatan)",
-                horizontal=True,
-                key="preview_doc_mode",
-            )
-        with p_col2:
-            up_sig_custom = st.file_uploader("Upload Tanda Tangan Baru PNG/JPG (Opsional, khusus LPJ)", type=["png", "jpg", "jpeg"], key="up_sig_preview")
-            up_fotos = st.file_uploader("Upload Lampiran Foto/Kwitansi Grid 2x2 (Opsional, khusus LPJ)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="up_fotos_preview")
+        with st.container(border=True):
+            p_col1, p_col2 = st.columns([1.3, 1.7])
+            with p_col1:
+                doc_mode_sel = st.radio(
+                    "Pilih Dokumen yang Ingin Di-Preview & Diunduh:",
+                    options=["RAB", "LPJ"],
+                    format_func=lambda x: "📋 Dokumen RAB Resmi (Pra-Kegiatan)" if x == "RAB" else "📝 Dokumen LPJ Resmi (Pasca-Kegiatan)",
+                    horizontal=True,
+                    key="preview_doc_mode",
+                )
+            with p_col2:
+                up_sig_custom = st.file_uploader("Upload Tanda Tangan Baru PNG/JPG (Opsional, khusus LPJ)", type=["png", "jpg", "jpeg"], key="up_sig_preview")
+                up_fotos = st.file_uploader("Upload Lampiran Foto/Kwitansi Grid 2x2 (Opsional, khusus LPJ)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="up_fotos_preview")
 
-        custom_sig_bytes = up_sig_custom.getvalue() if up_sig_custom is not None else None
-        attachment_imgs = []
-        if up_fotos:
-            for idx_f, f_obj in enumerate(up_fotos, start=1):
-                attachment_imgs.append({"bytes": f_obj.getvalue(), "caption": f"Dokumentasi {idx_f}: {f_obj.name}"})
+            custom_sig_bytes = up_sig_custom.getvalue() if up_sig_custom is not None else None
+            attachment_imgs = []
+            if up_fotos:
+                for idx_f, f_obj in enumerate(up_fotos, start=1):
+                    attachment_imgs.append({"bytes": f_obj.getvalue(), "caption": f"Dokumentasi {idx_f}: {f_obj.name}"})
 
-        if doc_mode_sel == "RAB":
-            active_payload = collect_rab_payload(df_rab_now)
-            docx_bytes = generate_rab_docx_bytes(active_payload)
-            clean_name = "".join(ch if ch.isalnum() else "_" for ch in active_payload.get("lokasi_acara_rab", "JEMBER")[:25]).strip("_")
-            file_base = f"RAB_DWP_{clean_name or 'MALANG'}_{date.today().strftime('%Y%m%d')}"
-        else:
-            active_payload = collect_lpj_payload(df_lpj_now)
-            docx_bytes = generate_lpj_docx_bytes(active_payload, custom_sig_bytes=custom_sig_bytes, attachment_images=attachment_imgs)
-            clean_name = "".join(ch if ch.isalnum() else "_" for ch in active_payload.get("tempat_acara", "BLITAR")[:25]).strip("_")
-            file_base = f"LPJ_DWP_{clean_name or 'MALANG'}_{date.today().strftime('%Y%m%d')}"
+            if doc_mode_sel == "RAB":
+                active_payload = collect_rab_payload(df_rab_now)
+                docx_bytes = generate_rab_docx_bytes(active_payload)
+                clean_name = "".join(ch if ch.isalnum() else "_" for ch in active_payload.get("lokasi_acara_rab", "JEMBER")[:25]).strip("_")
+                file_base = f"RAB_DWP_{clean_name or 'MALANG'}_{date.today().strftime('%Y%m%d')}"
+            else:
+                active_payload = collect_lpj_payload(df_lpj_now)
+                docx_bytes = generate_lpj_docx_bytes(active_payload, custom_sig_bytes=custom_sig_bytes, attachment_images=attachment_imgs)
+                clean_name = "".join(ch if ch.isalnum() else "_" for ch in active_payload.get("tempat_acara", "BLITAR")[:25]).strip("_")
+                file_base = f"LPJ_DWP_{clean_name or 'MALANG'}_{date.today().strftime('%Y%m%d')}"
 
-        pdf_bytes, pdf_msg = convert_docx_bytes_to_pdf_bytes(docx_bytes)
+            pdf_bytes, pdf_msg = convert_docx_bytes_to_pdf_bytes(docx_bytes)
 
-        render_mail_merge_expander(doc_mode_sel, active_payload)
+            render_mail_merge_expander(doc_mode_sel, active_payload)
 
-        dl1, dl2, dl3 = st.columns([1.1, 1.15, 1.15])
-        with dl1:
-            if st.button(f"💾 Simpan {doc_mode_sel} Ini ke History & Cloud", use_container_width=True):
-                if doc_mode_sel == "RAB":
-                    ok_s, msg_s = save_rab_to_storage(active_payload, sheet_id_active, creds_active)
-                else:
-                    ok_s, msg_s = save_lpj_to_storage(active_payload, sheet_id_active, creds_active)
-                if ok_s:
-                    st.success(msg_s)
-                else:
-                    st.error(msg_s)
+            dl1, dl2, dl3 = st.columns([1.1, 1.15, 1.15])
+            with dl1:
+                if st.button(f"💾 Simpan {doc_mode_sel} Ini ke Riwayat", use_container_width=True):
+                    if doc_mode_sel == "RAB":
+                        ok_s, msg_s = save_rab_to_storage(active_payload, sheet_id_active, creds_active)
+                    else:
+                        ok_s, msg_s = save_lpj_to_storage(active_payload, sheet_id_active, creds_active)
+                    if ok_s:
+                        st.success(msg_s)
+                    else:
+                        st.error(msg_s)
 
-        with dl2:
-            st.markdown(
-                make_direct_download_html(
-                    file_bytes=docx_bytes,
-                    filename=f"{file_base}.docx",
-                    mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    label=f"📄 Unduh Word {doc_mode_sel} Resmi (.docx)",
-                    bg_gradient="linear-gradient(135deg, #2B98F0 0%, #1D7FE0 100%)",
-                ),
-                unsafe_allow_html=True,
-            )
-
-        with dl3:
-            if pdf_bytes:
+            with dl2:
                 st.markdown(
                     make_direct_download_html(
-                        file_bytes=pdf_bytes,
-                        filename=f"{file_base}.pdf",
-                        mime_type="application/pdf",
-                        label=f"📕 Unduh PDF {doc_mode_sel} Siap Sebar (.pdf)",
-                        bg_gradient="linear-gradient(135deg, #00D09C 0%, #00B386 100%)",
+                        file_bytes=docx_bytes,
+                        filename=f"{file_base}.docx",
+                        mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        label=f"📄 Unduh Word {doc_mode_sel} Resmi (.docx)",
+                        bg_gradient="linear-gradient(135deg, #2B98F0 0%, #1D7FE0 100%)",
                     ),
                     unsafe_allow_html=True,
                 )
-            else:
-                st.info(pdf_msg)
-        st.markdown("</div>", unsafe_allow_html=True)
+
+            with dl3:
+                if pdf_bytes:
+                    st.markdown(
+                        make_direct_download_html(
+                            file_bytes=pdf_bytes,
+                            filename=f"{file_base}.pdf",
+                            mime_type="application/pdf",
+                            label=f"📕 Unduh PDF {doc_mode_sel} Siap Sebar (.pdf)",
+                            bg_gradient="linear-gradient(135deg, #00D09C 0%, #00B386 100%)",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.info(pdf_msg)
 
         a4_html = build_a4_live_preview_html(doc_mode_sel, active_payload, custom_sig_bytes=custom_sig_bytes)
         st.components.v1.html(a4_html, height=1080, scrolling=True)
 
     # ==========================================================================
-    # VIEW 4: 🗄️ 4. HISTORY & DATA (TRIPLE-LAYER AUTO-HISTORY & CLOUD)
+    # VIEW 4: 🗄️ 4. RIWAYAT & HAPUS DATA (FULL CRUD & PEMBERSIH DOBEL OTOMATIS)
     # ==========================================================================
     elif active_menu == MENU_CLOUD:
         render_history_quick_bar("cloud", "ALL", bundle, sheet_id_active, creds_active)
 
-        st.markdown('<div class="fily-card">', unsafe_allow_html=True)
-        st.markdown(
-            f"#### 🗄️ Manajemen Arsip History Permanen (`{LOCAL_HISTORY_JSON_FILE}` & Google Sheets `{sheet_id_active}`)"
-        )
         rab_rows = bundle.get("rab_rows", [])
         lpj_rows = bundle.get("lpj_rows", [])
         rk_rows = bundle.get("rekap_rows", [])
 
-        db_c1, db_c2 = st.columns(2)
-        with db_c1:
-            st.markdown(f"##### 📋 Daftar Riwayat RAB (`{len(rab_rows)} Dokumen`)")
-            if rab_rows:
-                st.dataframe(pd.DataFrame(rab_rows).drop(columns=["PAYLOAD_JSON"], errors="ignore"), use_container_width=True, hide_index=True)
-            else:
-                st.info("Belum ada arsip RAB tersimpan.")
+        with st.container(border=True):
+            top_h1, top_h2 = st.columns([2.1, 1.1])
+            with top_h1:
+                st.markdown("#### 🗄️ Manajemen Riwayat Dokumen & Pembersih Data Dobel")
+                st.caption("Kelola seluruh arsip RAB & LPJ yang tersimpan di penyimpanan lokal maupun Google Sheets.")
+            with top_h2:
+                if st.button("🧹 Bersihkan Data Dobel Otomatis", use_container_width=True):
+                    ok_dedup, msg_dedup = deduplicate_history_storage(sheet_id_active, creds_active)
+                    if ok_dedup:
+                        st.toast(msg_dedup, icon="🧹")
+                        st.success(msg_dedup)
+                        st.rerun()
 
-        with db_c2:
-            st.markdown(f"##### 📝 Daftar Riwayat LPJ (`{len(lpj_rows)} Dokumen`)")
-            if lpj_rows:
-                st.dataframe(pd.DataFrame(lpj_rows).drop(columns=["PAYLOAD_JSON"], errors="ignore"), use_container_width=True, hide_index=True)
-            else:
-                st.info("Belum ada arsip LPJ tersimpan.")
+            db_c1, db_c2 = st.columns(2)
+            with db_c1:
+                st.markdown(f"##### 📋 Daftar Riwayat RAB ({len(rab_rows)} Dokumen)")
+                if rab_rows:
+                    rab_del_opts = [f"{r.get('ID_RAB')} | {r.get('LOKASI_ACARA')} ({fmt_rp_cell(r.get('TOTAL_RAB', 0), False)})" for r in rab_rows]
+                    sel_del_rab = st.selectbox("Pilih RAB untuk Dibuka / Dihapus:", options=rab_del_opts, key="sel_manage_rab")
+                    sel_rab_id = sel_del_rab.split(" | ")[0].strip()
+                    mb_r1, mb_r2 = st.columns(2)
+                    with mb_r1:
+                        if st.button("📂 Buka RAB Ini", key="btn_m_open_rab", use_container_width=True):
+                            for r in rab_rows:
+                                if r.get("ID_RAB") == sel_rab_id and r.get("PAYLOAD_JSON"):
+                                    load_rab_into_state(json.loads(r["PAYLOAD_JSON"]))
+                                    switch_menu(MENU_RAB)
+                    with mb_r2:
+                        if st.button("🗑️ Hapus RAB Ini", key="btn_m_del_rab", use_container_width=True):
+                            ok_d, msg_d = delete_rab_from_storage(sel_rab_id, sheet_id_active, creds_active)
+                            st.toast(msg_d, icon="🗑️")
+                            st.rerun()
+                    st.dataframe(pd.DataFrame(rab_rows).drop(columns=["PAYLOAD_JSON"], errors="ignore"), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Belum ada arsip RAB tersimpan.")
 
-        st.markdown(f"##### 📊 Tabel Gabungan `REKAP_ITEM_DANA` (`{len(rk_rows)} Baris Rincian Item RAB & LPJ`)")
-        if rk_rows:
-            st.dataframe(pd.DataFrame(rk_rows), use_container_width=True, hide_index=True)
-        else:
-            st.info("Belum ada rincian item tersimpan di REKAP_ITEM_DANA.")
-        st.markdown("</div>", unsafe_allow_html=True)
+            with db_c2:
+                st.markdown(f"##### 📝 Daftar Riwayat LPJ ({len(lpj_rows)} Dokumen)")
+                if lpj_rows:
+                    lpj_del_opts = [f"{r.get('ID_LPJ')} | {r.get('TEMPAT_ACARA')} ({fmt_rp_cell(r.get('TOTAL_DANA', 0), False)})" for r in lpj_rows]
+                    sel_del_lpj = st.selectbox("Pilih LPJ untuk Dibuka / Dihapus:", options=lpj_del_opts, key="sel_manage_lpj")
+                    sel_lpj_id = sel_del_lpj.split(" | ")[0].strip()
+                    mb_l1, mb_l2 = st.columns(2)
+                    with mb_l1:
+                        if st.button("📂 Buka LPJ Ini", key="btn_m_open_lpj", use_container_width=True):
+                            for r in lpj_rows:
+                                if r.get("ID_LPJ") == sel_lpj_id and r.get("PAYLOAD_JSON"):
+                                    load_lpj_into_state(json.loads(r["PAYLOAD_JSON"]))
+                                    switch_menu(MENU_LPJ)
+                    with mb_l2:
+                        if st.button("🗑️ Hapus LPJ Ini", key="btn_m_del_lpj", use_container_width=True):
+                            ok_d, msg_d = delete_lpj_from_storage(sel_lpj_id, sheet_id_active, creds_active)
+                            st.toast(msg_d, icon="🗑️")
+                            st.rerun()
+                    st.dataframe(pd.DataFrame(lpj_rows).drop(columns=["PAYLOAD_JSON"], errors="ignore"), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Belum ada arsip LPJ tersimpan.")
+
+        with st.container(border=True):
+            st.markdown(f"##### 📊 Tabel Gabungan Rekap Item Dana ({len(rk_rows)} Baris Rincian Item RAB & LPJ)")
+            if rk_rows:
+                st.dataframe(pd.DataFrame(rk_rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("Belum ada rincian item tersimpan.")
+
+    # ==========================================================================
+    # VIEW 5: 📊 5. KOMPARASI RAB VS LPJ (KHUSUS KEGIATAN BERPASANGAN)
+    # ==========================================================================
+    elif active_menu == MENU_KOMPARASI:
+        rab_rows = bundle.get("rab_rows", [])
+        lpj_rows = bundle.get("lpj_rows", [])
+
+        with st.container(border=True):
+            st.markdown("#### 📊 Komparasi Anggaran Rencana (RAB) vs Realisasi (LPJ)")
+            st.caption(
+                "Pilih pasangan dokumen RAB dan LPJ dari kegiatan yang sama untuk melihat perbandingan anggaran dan selisih realisasi secara akurat."
+            )
+
+            # Cari pasangan otomatis yang memiliki LPJ.ID_RAB_REF == RAB.ID_RAB
+            rab_dict_map = {r.get("ID_RAB"): r for r in rab_rows if r.get("ID_RAB")}
+            lpj_dict_map = {r.get("ID_LPJ"): r for r in lpj_rows if r.get("ID_LPJ")}
+
+            paired_lpj = [r for r in lpj_rows if r.get("ID_RAB_REF") and r.get("ID_RAB_REF") in rab_dict_map]
+
+            if not paired_lpj:
+                st.info(
+                    "ℹ️ **Info Relasi Dokumen:** Saat ini contoh bawaan **RAB Jember** (`RAB-2026-JEMBER`) dan **LPJ Blitar** (`LPJ-20260813-BLITAR`) "
+                    "adalah **2 kegiatan berbeda kota** sehingga tidak dibandingkan secara paksa. "
+                    "Untuk membuat pasangan RAB & LPJ dari kegiatan yang sama, buka menu **📋 1. Buat / Edit RAB** lalu klik tombol **🚀 Buat LPJ dari RAB Ini (1-Klik)**, "
+                    "atau pilih dokumen secara manual di bawah ini."
+                )
+
+            rab_opts = [f"{r.get('ID_RAB')} | {r.get('LOKASI_ACARA')} ({fmt_rp_cell(r.get('TOTAL_RAB', 0), False)})" for r in rab_rows]
+            lpj_opts = [f"{r.get('ID_LPJ')} | {r.get('TEMPAT_ACARA')} [Ref: {r.get('ID_RAB_REF') or 'Mandiri'}] ({fmt_rp_cell(r.get('TOTAL_DANA', 0), False)})" for r in lpj_rows]
+
+            default_rab_idx = 0
+            default_lpj_idx = 0
+            if paired_lpj:
+                target_lpj_id = paired_lpj[0].get("ID_LPJ")
+                target_rab_id = paired_lpj[0].get("ID_RAB_REF")
+                for i, r in enumerate(rab_rows):
+                    if r.get("ID_RAB") == target_rab_id:
+                        default_rab_idx = i
+                        break
+                for j, r in enumerate(lpj_rows):
+                    if r.get("ID_LPJ") == target_lpj_id:
+                        default_lpj_idx = j
+                        break
+
+            kc1, kc2 = st.columns(2)
+            with kc1:
+                sel_comp_rab = st.selectbox("Pilih Dokumen Rencana (RAB):", options=rab_opts if rab_opts else ["-- Kosong --"], index=default_rab_idx)
+            with kc2:
+                sel_comp_lpj = st.selectbox("Pilih Dokumen Realisasi (LPJ):", options=lpj_opts if lpj_opts else ["-- Kosong --"], index=default_lpj_idx)
+
+            if rab_opts and lpj_opts:
+                chosen_rab_id = sel_comp_rab.split(" | ")[0].strip()
+                chosen_lpj_id = sel_comp_lpj.split(" | ")[0].strip()
+                rab_obj = rab_dict_map.get(chosen_rab_id, {})
+                lpj_obj = lpj_dict_map.get(chosen_lpj_id, {})
+
+                rab_p = json.loads(rab_obj.get("PAYLOAD_JSON", "{}")) if rab_obj.get("PAYLOAD_JSON") else collect_rab_payload(df_rab_now)
+                lpj_p = json.loads(lpj_obj.get("PAYLOAD_JSON", "{}")) if lpj_obj.get("PAYLOAD_JSON") else collect_lpj_payload(df_lpj_now)
+
+                df_c_rab = normalize_items_df(rab_p.get("items_rab", []))
+                df_c_lpj = normalize_items_df(lpj_p.get("items_dana", []))
+                tot_c_rab = int(df_c_rab["HARGA TOTAL"].sum()) if not df_c_rab.empty else 0
+                tot_c_lpj = int(df_c_lpj["HARGA TOTAL"].sum()) if not df_c_lpj.empty else 0
+                diff_c = tot_c_lpj - tot_c_rab
+
+                if lpj_obj.get("ID_RAB_REF") != chosen_rab_id:
+                    st.warning(
+                        f"⚠️ **Perhatian:** LPJ `{chosen_lpj_id}` ({lpj_obj.get('TEMPAT_ACARA')}) tidak dibuat dari RAB `{chosen_rab_id}` ({rab_obj.get('LOKASI_ACARA')}). "
+                        "Pastikan Anda membandingkan RAB dan LPJ dari kegiatan/kota yang sama."
+                    )
+                else:
+                    st.success(f"✅ Pasangan Kegiatan Cocok: LPJ `{chosen_lpj_id}` merupakan realisasi langsung dari RAB `{chosen_rab_id}`.")
+
+                m1, m2, m3 = st.columns(3)
+                with m1:
+                    st.markdown(
+                        f"""
+                        <div class="fily-pill pill-emerald">
+                            <div class="fily-pill-icon">📋</div>
+                            <div style="text-align:right;">
+                                <div style="font-size:12px;font-weight:700;">TOTAL RENCANA (RAB)</div>
+                                <div style="font-size:19px;font-weight:800;">{fmt_rp_cell(tot_c_rab, False)}</div>
+                                <div style="font-size:11.5px;">{chosen_rab_id}</div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                with m2:
+                    st.markdown(
+                        f"""
+                        <div class="fily-pill pill-blue">
+                            <div class="fily-pill-icon">📝</div>
+                            <div style="text-align:right;">
+                                <div style="font-size:12px;font-weight:700;">TOTAL REALISASI (LPJ)</div>
+                                <div style="font-size:19px;font-weight:800;">{fmt_rp_cell(tot_c_lpj, False)}</div>
+                                <div style="font-size:11.5px;">{chosen_lpj_id}</div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                with m3:
+                    diff_lbl = ("+" if diff_c > 0 else "") + fmt_ribuan(diff_c)
+                    st.markdown(
+                        f"""
+                        <div class="fily-pill pill-rose">
+                            <div class="fily-pill-icon">🎯</div>
+                            <div style="text-align:right;">
+                                <div style="font-size:12px;font-weight:700;">SELISIH (LPJ - RAB)</div>
+                                <div style="font-size:19px;font-weight:800;">Rp {diff_lbl}</div>
+                                <div style="font-size:11.5px;">Komparasi Akhir</div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                max_len = max(len(df_c_rab), len(df_c_lpj))
+                comp_rows = []
+                for i in range(max_len):
+                    r_rab = df_c_rab.iloc[i] if i < len(df_c_rab) else None
+                    r_lpj = df_c_lpj.iloc[i] if i < len(df_c_lpj) else None
+                    v_rab = int(r_rab["HARGA TOTAL"]) if r_rab is not None else 0
+                    v_lpj = int(r_lpj["HARGA TOTAL"]) if r_lpj is not None else 0
+                    sel_item = v_lpj - v_rab
+                    comp_rows.append({
+                        "NO": i + 1,
+                        "KEBUTUHAN (RAB)": str(r_rab["KEBUTUHAN KEGIATAN"]) if r_rab is not None else "-",
+                        "ANGGARAN RAB": fmt_rp_cell(v_rab, True) if r_rab is not None else "-",
+                        "KEBUTUHAN (LPJ)": str(r_lpj["KEBUTUHAN KEGIATAN"]) if r_lpj is not None else "-",
+                        "REALISASI LPJ": fmt_rp_cell(v_lpj, True) if r_lpj is not None else "-",
+                        "SELISIH": ("+" if sel_item > 0 else "") + fmt_ribuan(sel_item) if (r_rab is not None or r_lpj is not None) else "-",
+                    })
+                st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
 
 
 if __name__ == "__main__":
